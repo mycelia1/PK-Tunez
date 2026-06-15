@@ -69,37 +69,32 @@ $ffmpegExe = Get-ChildItem -Path $ffmpegExtract -Recurse -Filter 'ffmpeg.exe' | 
 Copy-Item $ffmpegExe.FullName (Join-Path $outDir 'ffmpeg.exe') -Force
 
 # 5. Smoke-test the bundled binary.
-#    --help only exercises arg parsing; we also run a real invocation so that
-#    config loading (scdl.cfg) and the yt_dlp/scdl import chain are exercised.
+#    --help only exercises arg parsing. The offline self-test (--pk-selftest)
+#    deterministically exercises the full scdl + yt_dlp import chain and the
+#    bundled scdl.cfg data file with no network access (a live download would
+#    depend on SoundCloud client-id scraping, which is flaky on CI).
 Write-Host "`n[5/5] Smoke-testing scdl.exe..."
 $scdlExe = Join-Path $outDir 'scdl.exe'
 
-# scdl writes normal status lines to stderr, so relax error handling while we
-# capture combined output (otherwise PowerShell treats stderr as terminating).
 $prevEAP = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
 
 & $scdlExe --help 2>&1 | Out-Null
 $helpExit = $LASTEXITCODE
 
-# A bogus URL fails fast on the network side, but only AFTER scdl loads its
-# config and the full import chain - which is exactly what crashed before.
-$runOut = (& $scdlExe -l 'https://soundcloud.com/pk-tunez-smoke-test/does-not-exist' 2>&1 | Out-String)
+$selfTestOut = (& $scdlExe --pk-selftest 2>&1 | Out-String)
+$selfTestExit = $LASTEXITCODE
 
 $ErrorActionPreference = $prevEAP
 
 if ($helpExit -ne 0) {
   throw "scdl.exe --help failed with exit code $helpExit"
 }
-
-$badMarkers = @('Failed to execute script', 'scdl.cfg', 'No such file or directory', 'ModuleNotFoundError', 'Traceback (most recent call last)')
-foreach ($marker in $badMarkers) {
-  if ($runOut -match [regex]::Escape($marker)) {
-    Write-Host $runOut
-    throw "scdl.exe smoke test detected a packaging failure (matched: '$marker')"
-  }
+if ($selfTestExit -ne 0 -or ($selfTestOut -notmatch 'SELFTEST OK')) {
+  Write-Host $selfTestOut
+  throw "scdl.exe self-test failed (exit $selfTestExit)"
 }
-Write-Host "scdl.exe OK (help + config load verified)"
+Write-Host "scdl.exe OK (import chain + bundled scdl.cfg verified)"
 
 Write-Host "`nDone. Binaries written to $outDir"
 Write-Host "Cleaning up work dir..."

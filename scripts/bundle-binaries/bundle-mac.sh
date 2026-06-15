@@ -80,24 +80,22 @@ chmod +x "${OUT_DIR}/ffmpeg"
 # 5. Smoke-test the bundled binary.
 echo ""
 echo "[5/5] Smoke-testing scdl..."
-# --help only exercises arg parsing; also run a real invocation so config
-# loading (scdl.cfg) and the yt_dlp/scdl import chain are exercised.
+# --help only exercises arg parsing. The offline self-test (--pk-selftest)
+# deterministically exercises the full scdl + yt_dlp import chain and the
+# bundled scdl.cfg data file with no network access (a live download would
+# depend on SoundCloud client-id scraping, which is flaky on CI).
 if ! "${OUT_DIR}/scdl" --help >/dev/null 2>&1; then
   echo "scdl --help failed" >&2
   exit 1
 fi
 
-# A bogus URL fails fast on the network side, but only AFTER scdl loads its
-# config and the full import chain - which is exactly what crashed before.
-RUN_OUT="$("${OUT_DIR}/scdl" -l 'https://soundcloud.com/pk-tunez-smoke-test/does-not-exist' 2>&1 || true)"
-for marker in 'Failed to execute script' 'scdl.cfg' 'No such file or directory' 'ModuleNotFoundError' 'Traceback (most recent call last)'; do
-  if printf '%s' "${RUN_OUT}" | grep -qF "${marker}"; then
-    printf '%s\n' "${RUN_OUT}"
-    echo "scdl smoke test detected a packaging failure (matched: '${marker}')" >&2
-    exit 1
-  fi
-done
-echo "scdl OK (help + config load verified)"
+SELFTEST_OUT="$("${OUT_DIR}/scdl" --pk-selftest 2>&1 || true)"
+if ! printf '%s' "${SELFTEST_OUT}" | grep -qF 'SELFTEST OK'; then
+  printf '%s\n' "${SELFTEST_OUT}"
+  echo "scdl self-test failed" >&2
+  exit 1
+fi
+echo "scdl OK (import chain + bundled scdl.cfg verified)"
 
 echo ""
 echo "Done. Binaries written to ${OUT_DIR}"
