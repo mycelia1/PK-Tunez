@@ -1,0 +1,5 @@
+.app-footer__note {
+  font-size: 18px;
+  color: var(--eb-dialog-bg);
+  text-shadow: 1px 1px 0 var(--eb-outline);
+}

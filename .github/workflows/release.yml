@@ -1,0 +1,80 @@
+name: Release
+
+# Builds PK-Tunez installers for Windows and macOS.
+# Trigger manually (Actions tab -> Run workflow) or by pushing a v* tag.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-win:
+    name: Build Windows installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bundle sidecar binaries (scdl + ffmpeg)
+        run: npm run bundle:binaries:win
+
+      - name: Build Windows installer
+        run: npm run build:win
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: PK-Tunez-Windows
+          path: release/**/*-Setup.exe
+          if-no-files-found: error
+
+  build-mac:
+    name: Build macOS dmg (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            arch: arm64
+          - runner: macos-13
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bundle sidecar binaries (scdl + ffmpeg)
+        run: npm run bundle:binaries:mac
+
+      - name: Build macOS dmg
+        run: npm run build && npx electron-builder --mac --${{ matrix.arch }} --config electron-builder.yml
+
+      - name: Upload dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: PK-Tunez-Mac-${{ matrix.arch }}
+          path: release/**/*.dmg
+          if-no-files-found: error

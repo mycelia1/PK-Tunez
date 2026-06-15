@@ -1,0 +1,35 @@
+.dialogue-box {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  background: var(--eb-sky);
+  color: var(--eb-dialog-bg);
+}
+
+.dialogue-box--error {
+  background: var(--eb-pink);
+  color: var(--eb-outline);
+}
+
+.dialogue-box--success {
+  background: var(--eb-hp-green);
+  color: var(--eb-outline);
+}
+
+.dialogue-box__icon {
+  width: 28px;
+  height: 28px;
+  border: 3px solid currentColor;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-heading);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.dialogue-box__text {
+  margin: 0;
+  font-size: 22px;
+}

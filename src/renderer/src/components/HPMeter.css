@@ -1,0 +1,48 @@
+.hp-meter {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.hp-meter__label,
+.hp-meter__value {
+  font-family: var(--font-heading);
+  font-size: 10px;
+}
+
+.hp-meter__track {
+  height: 18px;
+  border: 3px solid var(--eb-outline);
+  border-radius: 999px;
+  overflow: hidden;
+  background: #dfe7ff;
+}
+
+.hp-meter__track--mid {
+  background: #fff3bf;
+}
+
+.hp-meter__track--low {
+  background: #ffd0d0;
+}
+
+.hp-meter__fill {
+  height: 100%;
+  background: var(--eb-hp-green);
+  transition: width 180ms linear;
+}
+
+.hp-meter__fill--indeterminate {
+  width: 35% !important;
+  animation: hp-indeterminate 1.1s ease-in-out infinite;
+}
+
+@keyframes hp-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}

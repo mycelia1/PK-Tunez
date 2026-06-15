@@ -1,0 +1,30 @@
+.session-complete__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 26, 26, 0.5);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  z-index: 30;
+}
+
+.session-complete {
+  width: min(520px, 100%);
+  padding: 24px;
+  background: var(--eb-hp-green);
+  text-align: center;
+}
+
+.session-complete__title {
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+
+.session-complete__text {
+  margin: 0 0 18px;
+  font-size: 24px;
+}
+
+.session-complete__close {
+  margin: 0 auto;
+}

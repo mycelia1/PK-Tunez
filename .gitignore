@@ -1,0 +1,20 @@
+node_modules
+dist
+out
+release
+*.log
+.DS_Store
+Thumbs.db
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Stray downloaded test tracks in the project root
+/*.m4a
+/*.mp3
+
+# Bundled sidecar binaries (produced by scripts/bundle-binaries/*)
+resources/bin/win32/*
+resources/bin/darwin/*
+!resources/bin/win32/README.md
+!resources/bin/darwin/README.md

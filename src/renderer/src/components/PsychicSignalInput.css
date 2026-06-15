@@ -1,0 +1,51 @@
+.psychic-signal {
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.psychic-signal__label {
+  display: block;
+}
+
+.psychic-signal__modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.psychic-signal__mode {
+  text-align: left;
+  padding: 10px 12px;
+  border: 3px solid var(--eb-outline);
+  border-radius: var(--radius-md);
+  background: #eef4ff;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+
+.psychic-signal__mode:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: var(--eb-yellow);
+}
+
+.psychic-signal__mode--active {
+  background: var(--eb-pink);
+  box-shadow: 0 4px 0 var(--eb-outline);
+}
+
+.psychic-signal__mode-label {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+
+.psychic-signal__mode-hint {
+  display: block;
+  font-size: 16px;
+  color: var(--eb-muted);
+}
+
+.psychic-signal__download {
+  justify-self: start;
+}

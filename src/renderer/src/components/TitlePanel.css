@@ -1,0 +1,39 @@
+.title-panel {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 24px;
+}
+
+.title-panel__logo {
+  width: 72px;
+  height: 72px;
+  border: var(--border-thick) solid var(--eb-outline);
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--eb-yellow);
+  flex-shrink: 0;
+}
+
+.title-panel__badge {
+  width: 72px;
+  height: 72px;
+  border: var(--border-thick) solid var(--eb-outline);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--eb-yellow);
+  color: var(--eb-outline);
+  font-family: var(--font-heading);
+  font-size: 14px;
+}
+
+.title-panel__eyebrow,
+.title-panel__subtitle {
+  margin: 0;
+  font-size: 18px;
+}
+
+.title-panel__title {
+  margin: 8px 0;
+}

@@ -1,0 +1,72 @@
+appId: com.pktunez.app
+productName: PK-Tunez
+copyright: Copyright © 2026 PK-Tunez
+
+directories:
+  output: release/${version}
+  buildResources: build
+
+files:
+  - out/**
+  - package.json
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!scripts/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!electron-builder.yml'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,README.md}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,tsconfig.node.tsbuildinfo,tsconfig.web.tsbuildinfo}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+
+# Bundled sidecar binaries (scdl/ffmpeg/yt-dlp) live outside the asar so they
+# can be executed. Each OS only ships its own binaries.
+asarUnpack:
+  - resources/bin/**
+
+win:
+  icon: resources/icon.png
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-Windows-${version}-Setup.${ext}
+  extraResources:
+    - from: resources/icon.png
+      to: icon.png
+    - from: resources/bin/win32
+      to: bin
+      filter:
+        - '**/*'
+        - '!README.md'
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  deleteAppDataOnUninstall: false
+  shortcutName: PK-Tunez
+
+mac:
+  icon: resources/icon.png
+  category: public.app-category.music
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  artifactName: ${productName}-Mac-${version}-${arch}.${ext}
+  extraResources:
+    - from: resources/icon.png
+      to: icon.png
+    - from: resources/bin/darwin
+      to: bin
+      filter:
+        - '**/*'
+        - '!README.md'
+
+dmg:
+  artifactName: ${productName}-Mac-${version}-${arch}.${ext}
+
+npmRebuild: false

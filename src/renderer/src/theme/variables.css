@@ -1,0 +1,17 @@
+:root {
+  --eb-sky: #4d8cff;
+  --eb-yellow: #ffd23f;
+  --eb-pink: #ff7eb6;
+  --eb-outline: #1a1a1a;
+  --eb-dialog-bg: #ffffff;
+  --eb-hp-green: #5dd25d;
+  --eb-hp-yellow: #ffd23f;
+  --eb-hp-red: #ff5d5d;
+  --eb-muted: #5a6478;
+  --border-thick: 4px;
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --shadow-panel: 6px 6px 0 rgba(26, 26, 26, 0.35);
+  --font-heading: 'Press Start 2P', monospace;
+  --font-body: 'VT323', monospace;
+}

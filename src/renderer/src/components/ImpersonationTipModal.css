@@ -1,0 +1,39 @@
+.impersonation-tip__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 26, 26, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  z-index: 25;
+}
+
+.impersonation-tip {
+  width: min(640px, 100%);
+  padding: 20px;
+  background: #fffdf5;
+}
+
+.impersonation-tip__title {
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+
+.impersonation-tip__text {
+  margin: 0 0 12px;
+  font-size: 20px;
+}
+
+.impersonation-tip__code {
+  display: block;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 3px solid var(--eb-outline);
+  border-radius: var(--radius-md);
+  background: #eef4ff;
+  font-size: 18px;
+}
+
+.impersonation-tip__link {
+  color: var(--eb-sky);
+}
