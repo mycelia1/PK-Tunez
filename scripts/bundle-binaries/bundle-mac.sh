@@ -57,6 +57,7 @@ echo "[3/5] Building scdl with PyInstaller..."
   --specpath "${WORK_DIR}" \
   --collect-submodules yt_dlp \
   --collect-submodules scdl \
+  --collect-data scdl \
   --collect-all mutagen \
   --copy-metadata yt_dlp \
   --copy-metadata scdl \
@@ -79,11 +80,24 @@ chmod +x "${OUT_DIR}/ffmpeg"
 # 5. Smoke-test the bundled binary.
 echo ""
 echo "[5/5] Smoke-testing scdl..."
-"${OUT_DIR}/scdl" --help | head -n 3
-if [ $? -ne 0 ]; then
-  echo "scdl smoke test failed" >&2
+# --help only exercises arg parsing; also run a real invocation so config
+# loading (scdl.cfg) and the yt_dlp/scdl import chain are exercised.
+if ! "${OUT_DIR}/scdl" --help >/dev/null 2>&1; then
+  echo "scdl --help failed" >&2
   exit 1
 fi
+
+# A bogus URL fails fast on the network side, but only AFTER scdl loads its
+# config and the full import chain - which is exactly what crashed before.
+RUN_OUT="$("${OUT_DIR}/scdl" -l 'https://soundcloud.com/pk-tunez-smoke-test/does-not-exist' 2>&1 || true)"
+for marker in 'Failed to execute script' 'scdl.cfg' 'No such file or directory' 'ModuleNotFoundError' 'Traceback (most recent call last)'; do
+  if printf '%s' "${RUN_OUT}" | grep -qF "${marker}"; then
+    printf '%s\n' "${RUN_OUT}"
+    echo "scdl smoke test detected a packaging failure (matched: '${marker}')" >&2
+    exit 1
+  fi
+done
+echo "scdl OK (help + config load verified)"
 
 echo ""
 echo "Done. Binaries written to ${OUT_DIR}"

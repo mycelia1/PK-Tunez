@@ -22,7 +22,7 @@ EarthBound-inspired desktop companion for the [SCDL](https://github.com/scdl-org
 
 - Node.js 18+
 - `scdl` available on PATH (the app falls back to a bundled binary when present, otherwise PATH)
-- Optional: SoundCloud `client_id` (and `auth_token` for likes/private content)
+- Optional: SoundCloud credentials in the PSI Menu — see [SoundCloud credentials](#soundcloud-credentials-psi-menu) (auth token required for Likes; client ID usually auto-detected)
 - Optional: `pip install curl_cffi` for yt-dlp browser impersonation ([docs](https://github.com/yt-dlp/yt-dlp#impersonation))
 
 ## Development
@@ -110,6 +110,62 @@ Files: `settings.json`, `history.json`, `download-archive.txt`. On first launch,
 4. Press **PK DOWNLOAD!**
 
 Tracks already recorded in the global archive are skipped automatically, even if the audio file was moved elsewhere.
+
+## SoundCloud credentials (PSI Menu)
+
+PK-Tunez passes optional credentials to `scdl` / `yt-dlp`. Both fields are **optional for public tracks**; you only need them for certain download modes or when downloads start failing.
+
+### Do you need them?
+
+| Field | Required when | Why |
+|-------|-------------|-----|
+| **Client ID** | Usually **no** | `yt-dlp` discovers and caches a SoundCloud client ID automatically. PK-Tunez works without one for most public artist/track downloads. |
+| **Auth token** | **Likes** mode, private tracks, some GO+ / original-quality downloads | Proves you are logged in as your SoundCloud account. |
+
+### Client ID — what it is and when to set it
+
+SoundCloud’s API expects a `client_id` on every request (rate limiting and app identification). `yt-dlp` normally **extracts one from SoundCloud’s website and caches it** on your machine, which is why PK-Tunez often works with the field left blank.
+
+Set a **Client ID** in the PSI Menu if:
+
+- Public downloads suddenly fail with API or metadata errors (the cached ID may be stale or rate-limited).
+- You want to override the auto-detected ID with a fresh one from your browser.
+
+**How to find a client ID**
+
+1. Log in to [soundcloud.com](https://soundcloud.com) in your browser.
+2. Open Developer Tools (`F12`) → **Network** tab.
+3. Play a track or refresh the page. Filter for `api-v2.soundcloud.com`.
+4. Open any request and look for `client_id=` in the URL query string (or request params).
+5. Copy that value into **Client ID** in the PSI Menu and save.
+
+Client IDs can change or get throttled over time; if downloads break again, grab a fresh one.
+
+### Auth token — what it is and when to set it
+
+The auth token is your SoundCloud **OAuth token** — it tells the API which account you are. PK-Tunez sends it as `--auth-token` to `scdl`.
+
+You **need** it for:
+
+- **Likes** download mode (your favorited tracks).
+- **Private** tracks your account can access.
+- **Original / lossless** files when the uploader enabled downloads (per [scdl docs](https://github.com/scdl-org/scdl/wiki/Installation-Instruction)).
+- Some **SoundCloud Go+** content and higher-quality streams your subscription allows.
+
+You do **not** need it for typical public artist uploads, reposts, or playlists.
+
+**How to find your auth token**
+
+1. Log in to [soundcloud.com](https://soundcloud.com) in your browser.
+2. Open Developer Tools (`F12`).
+3. **Chrome / Edge:** **Application** tab → **Storage** → **Cookies** → `https://soundcloud.com`.
+4. **Firefox:** **Storage** tab → **Cookies** → `https://soundcloud.com`.
+5. Find the cookie named **`oauth_token`** and copy its **Value**.
+6. Paste into **Auth Token** in the PSI Menu and click **Save PSI Settings**.
+
+Alternative: in the **Network** tab, click a request to `api-v2.soundcloud.com` and copy the token from the `Authorization` header (the part after `OAuth `).
+
+**Security:** Your token is stored locally in `settings.json` under your PK-Tunez app data folder. It is equivalent to staying logged in — do not share it or commit it to git. If it leaks, log out of SoundCloud everywhere or change your password to invalidate sessions, then grab a new token.
 
 ## Sound effects
 

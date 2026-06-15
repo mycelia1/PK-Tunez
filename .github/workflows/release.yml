@@ -70,7 +70,7 @@ jobs:
         run: npm run bundle:binaries:mac
 
       - name: Build macOS dmg
-        run: npm run build && npx electron-builder --mac --${{ matrix.arch }} --config electron-builder.yml
+        run: npm run build && npx electron-builder --mac --${{ matrix.arch }} --publish never --config electron-builder.yml
 
       - name: Upload dmg
         uses: actions/upload-artifact@v4
