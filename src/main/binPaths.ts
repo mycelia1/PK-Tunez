@@ -38,13 +38,19 @@ export function hasBundledScdl(): boolean {
  */
 export function getSpawnEnv(): NodeJS.ProcessEnv {
   const binDir = getBinDir()
-  if (!existsSync(binDir)) {
-    return process.env
-  }
   const pathKey = isWindows ? 'Path' : 'PATH'
   const existing = process.env[pathKey] ?? process.env.PATH ?? ''
+  const pathValue =
+    existsSync(binDir) && existing
+      ? `${binDir}${isWindows ? ';' : ':'}${existing}`
+      : existsSync(binDir)
+        ? binDir
+        : existing
+
   return {
     ...process.env,
-    [pathKey]: existing ? `${binDir}${isWindows ? ';' : ':'}${existing}` : binDir
+    ...(pathValue ? { [pathKey]: pathValue } : {}),
+    PYTHONIOENCODING: 'utf-8',
+    PYTHONUTF8: '1'
   }
 }

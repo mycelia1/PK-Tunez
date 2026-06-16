@@ -29,7 +29,7 @@ export function Inventory({ items }: InventoryProps): JSX.Element {
           if (!item.filePath) {
             return [key, { exists: false, path: '' }] as const
           }
-          const resolved = await window.scdl.resolveAudioPath(item.filePath)
+          const resolved = await window.scdl.resolveAudioPath(item.filePath, item.trackId)
           return [key, { exists: resolved.exists, path: resolved.resolvedPath }] as const
         })
       )

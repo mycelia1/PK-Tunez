@@ -62,8 +62,11 @@ export interface ScdlApi {
   downloadArchiveFile: (
     sourcePath: string
   ) => Promise<{ ok: boolean; error?: string; savedPath?: string; cancelled?: boolean }>
-  resolveAudioPath: (filePath: string) => Promise<{ exists: boolean; resolvedPath: string }>
-  fileExists: (filePath: string) => Promise<boolean>
+  resolveAudioPath: (
+    filePath: string,
+    trackId?: string
+  ) => Promise<{ exists: boolean; resolvedPath: string }>
+  fileExists: (filePath: string, trackId?: string) => Promise<boolean>
   openInDefaultPlayer: (filePath: string) => Promise<{ ok: boolean; error?: string }>
   openFolder: (folderPath: string) => Promise<{ ok: boolean; error?: string }>
   onEvent: (callback: (event: ScdlEvent) => void) => () => void

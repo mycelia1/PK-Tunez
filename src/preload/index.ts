@@ -15,9 +15,13 @@ const api = {
     sourcePath: string
   ): Promise<{ ok: boolean; error?: string; savedPath?: string; cancelled?: boolean }> =>
     ipcRenderer.invoke(IPC.DOWNLOAD_ARCHIVE_FILE, sourcePath),
-  resolveAudioPath: (filePath: string): Promise<{ exists: boolean; resolvedPath: string }> =>
-    ipcRenderer.invoke(IPC.RESOLVE_AUDIO_PATH, filePath),
-  fileExists: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IPC.FILE_EXISTS, filePath),
+  resolveAudioPath: (
+    filePath: string,
+    trackId?: string
+  ): Promise<{ exists: boolean; resolvedPath: string }> =>
+    ipcRenderer.invoke(IPC.RESOLVE_AUDIO_PATH, filePath, trackId),
+  fileExists: (filePath: string, trackId?: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.FILE_EXISTS, filePath, trackId),
   openInDefaultPlayer: (filePath: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC.OPEN_IN_DEFAULT_PLAYER, filePath),
   openFolder: (folderPath: string): Promise<{ ok: boolean; error?: string }> =>

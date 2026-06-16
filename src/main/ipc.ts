@@ -73,13 +73,13 @@ export function registerIpcHandlers(): void {
       return { ok: false, error: message }
     }
   })
-  ipcMain.handle(IPC.FILE_EXISTS, (_event, filePath: string) => {
-    if (!filePath?.trim()) return false
-    return resolveAudioPath(filePath).exists
+  ipcMain.handle(IPC.FILE_EXISTS, (_event, filePath: string, trackId?: string) => {
+    if (!filePath?.trim() && !trackId?.trim()) return false
+    return resolveAudioPath(filePath, loadSettings().downloadDir, trackId).exists
   })
 
-  ipcMain.handle(IPC.RESOLVE_AUDIO_PATH, (_event, filePath: string) => {
-    return resolveAudioPath(filePath)
+  ipcMain.handle(IPC.RESOLVE_AUDIO_PATH, (_event, filePath: string, trackId?: string) => {
+    return resolveAudioPath(filePath, loadSettings().downloadDir, trackId)
   })
 
   ipcMain.handle(IPC.OPEN_IN_DEFAULT_PLAYER, async (_event, filePath: string) => {

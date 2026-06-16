@@ -5,8 +5,8 @@ import { loadSettings } from './settings'
 const MAX_SEARCH_DEPTH = 5
 const MAX_FILES_SCANNED = 500
 
-function findFileByName(rootDir: string, fileName: string): string | null {
-  if (!rootDir?.trim() || !fileName) return null
+function findFileInTree(rootDir: string, matches: (entry: string) => boolean): string | null {
+  if (!rootDir?.trim()) return null
 
   let scanned = 0
   const queue: Array<{ dir: string; depth: number }> = [{ dir: rootDir, depth: 0 }]
@@ -35,7 +35,7 @@ function findFileByName(rootDir: string, fileName: string): string | null {
         continue
       }
 
-      if (stat.isFile() && entry === fileName) {
+      if (stat.isFile() && matches(entry)) {
         return fullPath
       }
 
@@ -48,21 +48,45 @@ function findFileByName(rootDir: string, fileName: string): string | null {
   return null
 }
 
+export function findFileByTrackId(rootDir: string, trackId: string): string | null {
+  if (!trackId?.trim() || !/^\d+$/.test(trackId)) return null
+
+  const prefix = `[${trackId}]`
+  return findFileInTree(rootDir, (entry) => entry.startsWith(prefix))
+}
+
+function findFileByName(rootDir: string, fileName: string): string | null {
+  if (!fileName) return null
+  return findFileInTree(rootDir, (entry) => entry === fileName)
+}
+
 export function resolveAudioPath(
   storedPath: string,
-  downloadDir = loadSettings().downloadDir
+  downloadDir = loadSettings().downloadDir,
+  trackId?: string
 ): { exists: boolean; resolvedPath: string } {
   const trimmed = storedPath?.trim()
-  if (!trimmed) {
+  if (!trimmed && !trackId?.trim()) {
     return { exists: false, resolvedPath: '' }
   }
 
-  if (existsSync(trimmed)) {
+  if (trimmed && existsSync(trimmed)) {
     return { exists: true, resolvedPath: trimmed }
   }
 
   if (!downloadDir?.trim()) {
-    return { exists: false, resolvedPath: trimmed }
+    return { exists: false, resolvedPath: trimmed ?? '' }
+  }
+
+  if (trackId?.trim()) {
+    const byTrackId = findFileByTrackId(downloadDir, trackId.trim())
+    if (byTrackId) {
+      return { exists: true, resolvedPath: byTrackId }
+    }
+  }
+
+  if (!trimmed) {
+    return { exists: false, resolvedPath: '' }
   }
 
   const fileName = basename(trimmed)
@@ -86,4 +110,25 @@ export function resolveAudioPath(
   }
 
   return { exists: false, resolvedPath: trimmed }
+}
+
+export function resolveCompletedTrackPath(
+  storedPath: string,
+  soundCloudTrackId: string | null,
+  downloadDir = loadSettings().downloadDir
+): string {
+  const trimmed = storedPath?.trim()
+  if (trimmed && existsSync(trimmed)) {
+    return trimmed
+  }
+
+  if (soundCloudTrackId) {
+    const byTrackId = findFileByTrackId(downloadDir, soundCloudTrackId)
+    if (byTrackId) {
+      return byTrackId
+    }
+  }
+
+  const resolved = resolveAudioPath(trimmed ?? '', downloadDir, soundCloudTrackId ?? undefined)
+  return resolved.exists ? resolved.resolvedPath : trimmed ?? ''
 }

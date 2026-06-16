@@ -5,6 +5,8 @@ import { BrowserWindow } from 'electron'
 import { appendHistory, createHistoryEntry } from './archive'
 import { ensureArchiveFile, extractArtistSlug, loadSettings } from './settings'
 import { getScdlPath, getSpawnEnv } from './binPaths'
+import { decodeScdlOutput } from './scdlEncoding'
+import { resolveCompletedTrackPath } from './resolveAudioPath'
 import { IPC } from '../shared/ipc'
 import type { DownloadMode, DownloadRequest, QueueItem, ScdlEvent, AppSettings } from '../shared/types'
 
@@ -150,7 +152,7 @@ function buildArgs(request: DownloadRequest): string[] {
     settings.archivePath,
     '-c',
     '--name-format',
-    '{user[username]} - {title}',
+    '[{id}] {user[username]} - {title}',
     '--hide-progress',
     '--yt-dlp-args',
     buildYtDlpArgs(settings)
@@ -279,6 +281,17 @@ function parseTrackIdFromLine(line: string): string | null {
 
 let lastRequestUrl = ''
 let lastDestinationPath = ''
+let currentSoundCloudTrackId: string | null = null
+
+function isNumericSoundCloudTrackId(id: string | null | undefined): id is string {
+  return typeof id === 'string' && /^\d+$/.test(id)
+}
+
+function activeSoundCloudTrackId(queueTrackId: string): string | null {
+  if (isNumericSoundCloudTrackId(queueTrackId)) return queueTrackId
+  if (isNumericSoundCloudTrackId(currentSoundCloudTrackId)) return currentSoundCloudTrackId
+  return null
+}
 
 function parseFilterSkip(line: string): { title: string; reason: string } | null {
   if (!/does not pass filter/i.test(line)) return null
@@ -311,6 +324,11 @@ function handleLine(line: string): void {
   }
 
   emit({ type: 'status', message: trimmed })
+
+  const soundcloudIdMatch = trimmed.match(/\[soundcloud\]\s+(\d+):/i)
+  if (soundcloudIdMatch) {
+    currentSoundCloudTrackId = soundcloudIdMatch[1]
+  }
 
   const filterSkip = parseFilterSkip(trimmed)
   if (filterSkip) {
@@ -371,6 +389,9 @@ function handleLine(line: string): void {
   const destination = parseDestination(trimmed)
   if (destination) {
     currentTrackId = destination.trackId
+    if (isNumericSoundCloudTrackId(destination.trackId)) {
+      currentSoundCloudTrackId = destination.trackId
+    }
     lastDestinationPath = destination.filePath
     upsertTrackItem({
       id: currentTrackId,
@@ -428,8 +449,11 @@ function handleLine(line: string): void {
     const existing = queue.get(id)
     const title = existing?.title ?? 'Unknown track'
     const artist = existing?.artist ?? 'Unknown'
-    const trackSlug = id
-    const filePath = lastDestinationPath || join(loadSettings().downloadDir, `${artist} - ${title}`)
+    const soundCloudTrackId = activeSoundCloudTrackId(id)
+    const settings = loadSettings()
+    const filePath = resolveCompletedTrackPath(lastDestinationPath, soundCloudTrackId, settings.downloadDir)
+    const sizeBytes = safeFileSize(filePath)
+    const trackSlug = soundCloudTrackId ?? id
 
     upsertTrackItem({
       id,
@@ -447,7 +471,7 @@ function handleLine(line: string): void {
         artist,
         url: requestUrlFromContext(trimmed),
         filePath,
-        sizeBytes: safeFileSize(filePath)
+        sizeBytes
       })
     )
 
@@ -458,7 +482,7 @@ function handleLine(line: string): void {
       artist,
       url: requestUrlFromContext(trimmed),
       filePath,
-      sizeBytes: safeFileSize(filePath)
+      sizeBytes
     })
   }
 
@@ -507,14 +531,14 @@ function attachProcessHandlers(proc: ChildProcessWithoutNullStreams): void {
   let stderrBuffer = ''
 
   proc.stdout.on('data', (chunk: Buffer) => {
-    stdoutBuffer += chunk.toString('utf8')
+    stdoutBuffer += decodeScdlOutput(chunk)
     const lines = stdoutBuffer.split(/\r?\n/)
     stdoutBuffer = lines.pop() ?? ''
     lines.forEach(handleLine)
   })
 
   proc.stderr.on('data', (chunk: Buffer) => {
-    stderrBuffer += chunk.toString('utf8')
+    stderrBuffer += decodeScdlOutput(chunk)
     const lines = stderrBuffer.split(/\r?\n/)
     stderrBuffer = lines.pop() ?? ''
     lines.forEach(handleLine)
@@ -547,6 +571,7 @@ export function startDownload(window: BrowserWindow, request: DownloadRequest): 
   queue.clear()
   trackCounter = 0
   currentTrackId = null
+  currentSoundCloudTrackId = null
   lastRequestUrl = request.url
   lastDestinationPath = ''
 
