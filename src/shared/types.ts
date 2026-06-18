@@ -9,6 +9,22 @@ export interface AppSettings {
   limitTrackLength: boolean
   maxTrackLengthMinutes: number
   impersonationTipShown: boolean
+  /** Tracks to download per batch before a cooldown pause. 0 disables chunking. */
+  chunkSize: number
+  /** Seconds to wait between chunks to let SoundCloud's rate limiter cool off. */
+  chunkCooldownSeconds: number
+  /** Max automatic resume attempts after a throttle (403/429) is detected. */
+  maxThrottleRetries: number
+  /** Minimum yt-dlp sleep between tracks (seconds). */
+  sleepIntervalSeconds: number
+  /** Maximum yt-dlp sleep between tracks (seconds); jitter range with the min. */
+  maxSleepIntervalSeconds: number
+  /** yt-dlp --sleep-requests: seconds between metadata/API requests. 0 disables. */
+  sleepRequestsSeconds: number
+  /** yt-dlp --limit-rate value (e.g. "2M", "500K"). Empty disables. */
+  limitRate: string
+  /** yt-dlp --impersonate target (e.g. "chrome"). Empty disables (needs curl_cffi). */
+  impersonateTarget: string
 }
 
 export interface HistoryEntry {
@@ -49,6 +65,7 @@ export type ScdlEvent =
   | { type: 'done'; success: boolean; message: string }
   | { type: 'error'; message: string }
   | { type: 'rate-limit'; message: string }
+  | { type: 'cooldown'; message: string; seconds: number; reason: 'chunk' | 'throttle' }
   | { type: 'impersonation-warning' }
 
 export interface ScdlApi {

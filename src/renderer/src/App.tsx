@@ -23,7 +23,15 @@ const defaultSettings: AppSettings = {
   soundEnabled: true,
   limitTrackLength: true,
   maxTrackLengthMinutes: 60,
-  impersonationTipShown: false
+  impersonationTipShown: false,
+  chunkSize: 25,
+  chunkCooldownSeconds: 120,
+  maxThrottleRetries: 5,
+  sleepIntervalSeconds: 3,
+  maxSleepIntervalSeconds: 8,
+  sleepRequestsSeconds: 1.5,
+  limitRate: '',
+  impersonateTarget: ''
 }
 
 export default function App(): JSX.Element {
@@ -94,6 +102,10 @@ export default function App(): JSX.Element {
           setStatusMessage(event.message)
           setStatusVariant('error')
           playSound('error')
+          break
+        case 'cooldown':
+          setStatusMessage(event.message)
+          setStatusVariant(event.reason === 'throttle' ? 'error' : 'info')
           break
         case 'impersonation-warning':
           if (!settings.impersonationTipShown) {

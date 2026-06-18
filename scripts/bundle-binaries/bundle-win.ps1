@@ -33,10 +33,10 @@ Write-Host "`n[1/5] Creating Python venv..."
 python -m venv $venvDir
 $py = Join-Path $venvDir 'Scripts\python.exe'
 
-# 2. Install scdl (pulls yt-dlp) and PyInstaller.
-Write-Host "`n[2/5] Installing scdl + pyinstaller..."
+# 2. Install scdl (pulls yt-dlp), curl_cffi (browser impersonation), and PyInstaller.
+Write-Host "`n[2/5] Installing scdl + curl_cffi + pyinstaller..."
 & $py -m pip install --upgrade pip
-& $py -m pip install scdl pyinstaller
+& $py -m pip install scdl curl_cffi pyinstaller
 
 # 3. Build standalone scdl.exe with yt-dlp collected in.
 Write-Host "`n[3/5] Building scdl.exe with PyInstaller..."
@@ -50,8 +50,10 @@ Write-Host "`n[3/5] Building scdl.exe with PyInstaller..."
     --collect-submodules scdl `
     --collect-data scdl `
     --collect-all mutagen `
+    --collect-all curl_cffi `
     --copy-metadata yt_dlp `
     --copy-metadata scdl `
+    --copy-metadata curl_cffi `
     --runtime-hook (Join-Path $scriptDir 'pyi_rth_ytdlp_init.py') `
     --hidden-import yt_dlp.cookies `
     $launcher

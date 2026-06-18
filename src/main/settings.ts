@@ -11,7 +11,15 @@ const DEFAULT_SETTINGS: AppSettings = {
   soundEnabled: true,
   limitTrackLength: true,
   maxTrackLengthMinutes: 60,
-  impersonationTipShown: false
+  impersonationTipShown: false,
+  chunkSize: 25,
+  chunkCooldownSeconds: 120,
+  maxThrottleRetries: 5,
+  sleepIntervalSeconds: 3,
+  maxSleepIntervalSeconds: 8,
+  sleepRequestsSeconds: 1.5,
+  limitRate: '',
+  impersonateTarget: ''
 }
 
 function settingsPath(): string {

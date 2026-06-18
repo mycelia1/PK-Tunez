@@ -17,6 +17,29 @@ const queue = new Map<string, QueueItem>()
 let currentTrackId: string | null = null
 let trackCounter = 0
 
+/**
+ * Tracks a multi-run download "session". A session may spawn scdl several times:
+ * once per chunk (with a cooldown pause in between) and again after a throttle
+ * (403/429) backoff. Re-runs rely on `--download-archive` + `-c` so already
+ * downloaded tracks are skipped, making each run an effective resume.
+ */
+interface DownloadSession {
+  args: string[]
+  chunkSize: number
+  cooldownSeconds: number
+  maxThrottleRetries: number
+  throttleAttempts: number
+  chunkDownloads: number
+  runDownloads: number
+  totalDownloads: number
+  sawThrottle: boolean
+  killedForCooldown: boolean
+  cancelled: boolean
+  cooldownTimer: ReturnType<typeof setTimeout> | null
+}
+
+let session: DownloadSession | null = null
+
 function emit(event: ScdlEvent): void {
   if (activeWindow && !activeWindow.isDestroyed()) {
     activeWindow.webContents.send(IPC.EVENT, event)
@@ -121,7 +144,37 @@ function modeFlag(mode: DownloadMode): string[] {
 }
 
 function buildYtDlpArgs(settings: AppSettings): string {
-  const parts = ['--sleep-interval', '2', '--max-sleep-interval', '2']
+  // Randomized (jittered) sleep between tracks looks less bot-like than a fixed
+  // delay and is the main lever against SoundCloud throttling.
+  const minSleep = Math.max(0, settings.sleepIntervalSeconds)
+  const maxSleep = Math.max(minSleep, settings.maxSleepIntervalSeconds)
+  const parts: string[] = ['--sleep-interval', String(minSleep), '--max-sleep-interval', String(maxSleep)]
+
+  if (settings.sleepRequestsSeconds > 0) {
+    // Spaces out metadata/API requests, which is what actually trips 403/429.
+    parts.push('--sleep-requests', String(settings.sleepRequestsSeconds))
+  }
+
+  // Let yt-dlp absorb transient errors before our session-level resume kicks in.
+  parts.push(
+    '--retries',
+    '10',
+    '--extractor-retries',
+    '3',
+    '--fragment-retries',
+    '10',
+    '--retry-sleep',
+    '5'
+  )
+
+  if (settings.limitRate.trim()) {
+    parts.push('--limit-rate', settings.limitRate.trim())
+  }
+
+  if (settings.impersonateTarget.trim()) {
+    // Requires curl_cffi to be available to yt-dlp; bundled in packaged builds.
+    parts.push('--impersonate', settings.impersonateTarget.trim())
+  }
 
   if (settings.limitTrackLength) {
     const seconds = Math.max(1, settings.maxTrackLengthMinutes) * 60
@@ -152,7 +205,7 @@ function buildArgs(request: DownloadRequest): string[] {
     settings.archivePath,
     '-c',
     '--name-format',
-    '[{id}] {user[username]} - {title}',
+    '%(uploader)s - %(title)s',
     '--hide-progress',
     '--yt-dlp-args',
     buildYtDlpArgs(settings)
@@ -215,6 +268,17 @@ function parseDestination(line: string): { title: string; artist: string; filePa
       }
     }
     return { trackId, artist: 'Unknown', title: full, filePath }
+  }
+
+  const withoutExt = fileName.replace(/\.[^.]+$/, '')
+  const split = withoutExt.split(' - ')
+  if (split.length >= 2) {
+    return {
+      trackId: withoutExt,
+      artist: split[0].trim(),
+      title: split.slice(1).join(' - ').trim(),
+      filePath
+    }
   }
 
   return { trackId: fileName, artist: 'Unknown', title: fileName, filePath }
@@ -311,11 +375,19 @@ function handleLine(line: string): void {
 
   const lower = trimmed.toLowerCase()
 
-  if (lower.includes('429') || lower.includes('too many requests')) {
+  const is403 =
+    lower.includes('forbidden') ||
+    (/\b403\b/.test(lower) && (lower.includes('error') || lower.includes('http')))
+  const is429 =
+    lower.includes('too many requests') ||
+    (/\b429\b/.test(lower) && (lower.includes('error') || lower.includes('http')))
+  if (is403 || is429) {
+    if (session) session.sawThrottle = true
     emit({
       type: 'rate-limit',
-      message:
-        'SoundCloud is throttling requests (HTTP 429). Wait a few minutes before trying again, or download a smaller batch.'
+      message: is403
+        ? 'SoundCloud refused a request (HTTP 403) — likely throttling this session. PK-Tunez will back off and retry automatically.'
+        : 'SoundCloud is throttling requests (HTTP 429). PK-Tunez will slow down and resume automatically.'
     })
   }
 
@@ -484,13 +556,22 @@ function handleLine(line: string): void {
       filePath,
       sizeBytes
     })
+
+    if (session) {
+      session.chunkDownloads += 1
+      session.runDownloads += 1
+      session.totalDownloads += 1
+      maybeStartCooldown()
+    }
   }
 
   if (
     (lower.includes('error') || lower.includes('failed')) &&
     !lower.includes('could not interpret') &&
     !lower.includes('not remuxing') &&
-    !lower.includes('429')
+    !lower.includes('429') &&
+    !lower.includes('403') &&
+    !lower.includes('forbidden')
   ) {
     const id = currentTrackId ?? makeTrackId()
     const existing = queue.get(id)
@@ -545,25 +626,132 @@ function attachProcessHandlers(proc: ChildProcessWithoutNullStreams): void {
   })
 
   proc.on('close', (code) => {
-    activeProcess = null
+    if (activeProcess === proc) activeProcess = null
     currentTrackId = null
-    const success = code === 0
-    emit({
-      type: 'done',
-      success,
-      message: success ? 'Download session complete!' : `Download ended with code ${code ?? 'unknown'}`
-    })
+    onRunClose(code)
   })
 
   proc.on('error', (error) => {
-    activeProcess = null
+    if (activeProcess === proc) activeProcess = null
     emit({ type: 'error', message: error.message })
-    emit({ type: 'done', success: false, message: error.message })
+    finalize(false, error.message)
   })
 }
 
-export function startDownload(window: BrowserWindow, request: DownloadRequest): { ok: boolean; error?: string } {
+function backoffSeconds(attempt: number): number {
+  // 30, 60, 120, 240, 480 ... capped at 10 minutes.
+  return Math.min(600, 30 * 2 ** Math.max(0, attempt - 1))
+}
+
+/** Kill the current run early once a chunk is full so a cooldown can run. */
+function maybeStartCooldown(): void {
+  if (!session) return
+  const s = session
+  if (s.chunkSize <= 0) return
+  if (s.killedForCooldown) return
+  if (s.chunkDownloads < s.chunkSize) return
+
+  s.killedForCooldown = true
+  emit({
+    type: 'status',
+    message: `Chunk of ${s.chunkSize} done — pausing to avoid throttling...`
+  })
   if (activeProcess) {
+    activeProcess.kill()
+  }
+}
+
+function startCooldown(seconds: number, reason: 'chunk' | 'throttle'): void {
+  if (!session) return
+  const s = session
+  const message =
+    reason === 'chunk'
+      ? `Cooling down ${seconds}s before the next batch (${s.totalDownloads} downloaded so far)...`
+      : `Throttled — backing off ${seconds}s before resuming (attempt ${s.throttleAttempts}/${s.maxThrottleRetries})...`
+
+  emit({ type: 'cooldown', reason, seconds, message })
+  emit({ type: 'status', message })
+
+  s.cooldownTimer = setTimeout(() => {
+    if (!session || session.cancelled) return
+    session.cooldownTimer = null
+    spawnRun()
+  }, seconds * 1000)
+}
+
+function onRunClose(code: number | null): void {
+  if (!session) return
+  const s = session
+
+  if (s.cancelled) return
+
+  // Re-runs that make progress earn a fresh throttle-retry budget.
+  if (s.runDownloads > 0) {
+    s.throttleAttempts = 0
+  }
+
+  if (s.killedForCooldown) {
+    s.killedForCooldown = false
+    s.chunkDownloads = 0
+    startCooldown(s.cooldownSeconds, 'chunk')
+    return
+  }
+
+  const success = code === 0
+
+  if (s.sawThrottle && s.throttleAttempts < s.maxThrottleRetries) {
+    s.throttleAttempts += 1
+    startCooldown(backoffSeconds(s.throttleAttempts), 'throttle')
+    return
+  }
+
+  if (success) {
+    finalize(
+      true,
+      s.totalDownloads > 0
+        ? `Download session complete! ${s.totalDownloads} track(s) downloaded.`
+        : 'Download session complete!'
+    )
+    return
+  }
+
+  finalize(false, `Download ended with code ${code ?? 'unknown'}`)
+}
+
+function spawnRun(): void {
+  if (!session) return
+  const s = session
+  s.sawThrottle = false
+  s.runDownloads = 0
+  s.chunkDownloads = 0
+  s.killedForCooldown = false
+
+  try {
+    activeProcess = spawn(getScdlPath(), s.args, {
+      windowsHide: true,
+      env: getSpawnEnv()
+    })
+    attachProcessHandlers(activeProcess)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to start scdl'
+    emit({ type: 'error', message })
+    finalize(false, message)
+  }
+}
+
+function finalize(success: boolean, message: string): void {
+  if (!session) return
+  if (session.cooldownTimer) {
+    clearTimeout(session.cooldownTimer)
+  }
+  session = null
+  activeProcess = null
+  currentTrackId = null
+  emit({ type: 'done', success, message })
+}
+
+export function startDownload(window: BrowserWindow, request: DownloadRequest): { ok: boolean; error?: string } {
+  if (activeProcess || session) {
     return { ok: false, error: 'A download is already running.' }
   }
 
@@ -575,28 +763,49 @@ export function startDownload(window: BrowserWindow, request: DownloadRequest): 
   lastRequestUrl = request.url
   lastDestinationPath = ''
 
+  const settings = loadSettings()
   const args = buildArgs(request)
-  emit({ type: 'status', message: `Starting SCDL: scdl ${args.join(' ')}` })
 
-  try {
-    activeProcess = spawn(getScdlPath(), args, {
-      windowsHide: true,
-      env: getSpawnEnv()
-    })
-    attachProcessHandlers(activeProcess)
-    return { ok: true }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to start scdl'
-    emit({ type: 'error', message })
-    return { ok: false, error: message }
+  session = {
+    args,
+    chunkSize: Math.max(0, Math.floor(settings.chunkSize)),
+    cooldownSeconds: Math.max(5, Math.floor(settings.chunkCooldownSeconds)),
+    maxThrottleRetries: Math.max(0, Math.floor(settings.maxThrottleRetries)),
+    throttleAttempts: 0,
+    chunkDownloads: 0,
+    runDownloads: 0,
+    totalDownloads: 0,
+    sawThrottle: false,
+    killedForCooldown: false,
+    cancelled: false,
+    cooldownTimer: null
   }
+
+  emit({ type: 'status', message: `Starting SCDL: scdl ${args.join(' ')}` })
+  spawnRun()
+
+  if (!session) {
+    return { ok: false, error: 'Failed to start scdl.' }
+  }
+  return { ok: true }
 }
 
 export function cancelDownload(): void {
+  if (!session && !activeProcess) return
+
+  if (session) {
+    session.cancelled = true
+    if (session.cooldownTimer) {
+      clearTimeout(session.cooldownTimer)
+      session.cooldownTimer = null
+    }
+  }
   if (activeProcess) {
     activeProcess.kill()
     activeProcess = null
-    emit({ type: 'status', message: 'Download cancelled.' })
-    emit({ type: 'done', success: false, message: 'Download cancelled.' })
   }
+  session = null
+  currentTrackId = null
+  emit({ type: 'status', message: 'Download cancelled.' })
+  emit({ type: 'done', success: false, message: 'Download cancelled.' })
 }

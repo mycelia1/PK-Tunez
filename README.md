@@ -7,7 +7,8 @@ EarthBound-inspired desktop companion for the [SCDL](https://github.com/scdl-org
 - SNES-era JRPG menu styling with PK-Tunez branding
 - Batch artist/label downloads (`-t`, `-a`, `-f`, `-p`)
 - Skip long mixes (60 min default, toggle off for full sets)
-- 2-second delay between track requests to reduce SoundCloud rate limiting
+- Throttle protection: chunked batches with cooldowns, jittered per-track delays, and automatic 403/429 backoff + resume
+- Optional browser impersonation (bundled `curl_cffi`) and download rate limiting
 - Global text archive dedup via `--download-archive` (survives moving files to a thumb drive)
 - Persistent download history inventory with **Play** (opens default media player when file exists)
 - Party Roster status sprites (Ness walking, peace sign, evil mushroom)
@@ -23,7 +24,7 @@ EarthBound-inspired desktop companion for the [SCDL](https://github.com/scdl-org
 - Node.js 18+
 - `scdl` available on PATH (the app falls back to a bundled binary when present, otherwise PATH)
 - Optional: SoundCloud credentials in the PSI Menu — see [SoundCloud credentials](#soundcloud-credentials-psi-menu) (auth token required for Likes; client ID usually auto-detected)
-- Optional: `pip install curl_cffi` for yt-dlp browser impersonation ([docs](https://github.com/yt-dlp/yt-dlp#impersonation))
+- Optional: `pip install curl_cffi` for yt-dlp browser impersonation ([docs](https://github.com/yt-dlp/yt-dlp#impersonation)). The packaged installer bundles this already; you only need it for dev runs that use the impersonation toggle.
 
 ## Development
 
@@ -76,7 +77,8 @@ npm run build:mac
 macOS apps cannot be built on Windows. Use the included GitHub Actions workflow
 [.github/workflows/release.yml](.github/workflows/release.yml): push a `v*` tag or run it
 manually from the Actions tab. It builds the Windows `.exe` and both macOS dmgs
-(arm64 for Apple Silicon, x64 for Intel) and uploads them as artifacts.
+(arm64 for Apple Silicon, x64 for Intel) and publishes them to
+[GitHub Releases](https://github.com/mycelia1/PK-Tunez/releases).
 
 ### Code signing
 
@@ -167,6 +169,26 @@ Alternative: in the **Network** tab, click a request to `api-v2.soundcloud.com` 
 
 **Security:** Your token is stored locally in `settings.json` under your PK-Tunez app data folder. It is equivalent to staying logged in — do not share it or commit it to git. If it leaks, log out of SoundCloud everywhere or change your password to invalidate sessions, then grab a new token.
 
+## Throttle protection (PSI Menu)
+
+SoundCloud rate-limits bulk downloads and may start returning **HTTP 403/429** after a few dozen tracks. PK-Tunez has several knobs (all in the PSI Menu) to avoid and recover from this:
+
+| Setting | Default | What it does |
+|---------|---------|--------------|
+| **Chunk Size** | 25 | Downloads this many tracks, then pauses for a cooldown before continuing. `0` disables chunking. Re-runs skip finished tracks via the global archive, so each chunk is an effective resume. |
+| **Chunk Cooldown** | 120s | How long to wait between chunks. |
+| **Max Throttle Retries** | 5 | After a 403/429 is detected, PK-Tunez waits (exponential backoff: 30s → 60s → 120s …) and resumes, up to this many attempts. |
+| **Sleep Between Tracks (min/max)** | 3–8s | Randomized (jittered) delay between tracks. Jitter looks less bot-like than a fixed wait. |
+| **Sleep Between Requests** | 1.5s | Spaces out the API/metadata requests that usually trip throttling (yt-dlp `--sleep-requests`). |
+| **Limit Download Rate** | off | Caps bandwidth per download (e.g. `2M`, `500K`). Helps you blend in; it is *not* a direct throttle fix since throttling is driven by request frequency, not bandwidth. |
+| **Browser Impersonation** | off | Makes yt-dlp mimic a real Chrome TLS/HTTP fingerprint (`--impersonate chrome`) to reduce bot detection. Requires `curl_cffi`, which is bundled in the installed app. |
+
+**Tips if you still get throttled:**
+
+- Lower the chunk size and/or raise the cooldown.
+- Drop the **auth token** for public artist/label batches — using it ties throttling (and any flags) to your real account.
+- Enable browser impersonation.
+
 ## Sound effects
 
 Custom sounds live in `src/renderer/src/assets/sfx/`:
@@ -192,6 +214,6 @@ Custom sounds live in `src/renderer/src/assets/sfx/`:
 
 ## Troubleshooting
 
-**HTTP 429 (Too Many Requests):** SoundCloud is rate-limiting. Wait several minutes, download smaller batches, or keep the built-in 2-second delay enabled.
+**HTTP 403 / 429 (throttling):** SoundCloud is rate-limiting. PK-Tunez automatically backs off and resumes (see [Throttle protection](#throttle-protection-psi-menu)). If it keeps happening, lower the chunk size, raise the cooldown, drop the auth token for public batches, or enable browser impersonation.
 
 **Impersonation warning:** Usually harmless. Install `curl_cffi` if downloads fail. PK-Tunez shows a one-time tip when this warning appears.

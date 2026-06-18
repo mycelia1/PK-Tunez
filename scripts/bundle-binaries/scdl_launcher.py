@@ -16,6 +16,7 @@ def _pk_selftest() -> int:
         import scdl
         import scdl.scdl  # noqa: F401  triggers scdl.patches import chain
         import yt_dlp  # noqa: F401
+        import curl_cffi  # noqa: F401  required for yt-dlp browser impersonation
     except Exception as exc:  # pragma: no cover - exercised at build time
         print(f"SELFTEST FAIL: import error: {exc!r}", file=sys.stderr)
         return 1

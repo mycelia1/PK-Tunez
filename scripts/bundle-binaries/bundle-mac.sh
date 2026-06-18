@@ -40,11 +40,11 @@ echo "[1/5] Creating Python venv..."
 python3 -m venv "${VENV_DIR}"
 PY="${VENV_DIR}/bin/python"
 
-# 2. Install scdl (pulls yt-dlp) and PyInstaller.
+# 2. Install scdl (pulls yt-dlp), curl_cffi (browser impersonation), and PyInstaller.
 echo ""
-echo "[2/5] Installing scdl + pyinstaller..."
+echo "[2/5] Installing scdl + curl_cffi + pyinstaller..."
 "${PY}" -m pip install --upgrade pip
-"${PY}" -m pip install scdl pyinstaller
+"${PY}" -m pip install scdl curl_cffi pyinstaller
 
 # 3. Build standalone scdl with yt-dlp collected in.
 echo ""
@@ -59,8 +59,10 @@ echo "[3/5] Building scdl with PyInstaller..."
   --collect-submodules scdl \
   --collect-data scdl \
   --collect-all mutagen \
+  --collect-all curl_cffi \
   --copy-metadata yt_dlp \
   --copy-metadata scdl \
+  --copy-metadata curl_cffi \
   --runtime-hook "${SCRIPT_DIR}/pyi_rth_ytdlp_init.py" \
   --hidden-import yt_dlp.cookies \
   "${LAUNCHER}"
