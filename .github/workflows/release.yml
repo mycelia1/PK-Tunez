@@ -1,7 +1,8 @@
 name: Release
 
-# Builds PK-Tunez installers for Windows and macOS, then publishes them to
-# GitHub Releases when triggered by a v* tag.
+# Builds PK-Tunez installers for Windows and macOS. Each build job publishes its
+# own installer to the GitHub Release independently, so a slow or unavailable
+# runner for one platform never blocks the others from publishing.
 on:
   workflow_dispatch:
   push:
@@ -36,12 +37,19 @@ jobs:
       - name: Build Windows installer
         run: npm run build:win
 
-      - name: Upload installer
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: PK-Tunez-Windows
           path: release/**/*-Setup.exe
           if-no-files-found: error
+
+      - name: Publish to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/**/*-Setup.exe
+          fail_on_unmatched_files: true
 
   build-mac:
     name: Build macOS dmg (${{ matrix.arch }})
@@ -51,7 +59,9 @@ jobs:
         include:
           - runner: macos-14
             arch: arm64
-          - runner: macos-13
+          # macos-13 (Intel) was retired 2025-12-04; macos-15-intel is the last
+          # GitHub-hosted x86_64 macOS runner (available until ~Aug 2027).
+          - runner: macos-15-intel
             arch: x64
     runs-on: ${{ matrix.runner }}
     steps:
@@ -75,27 +85,18 @@ jobs:
       - name: Build macOS dmg
         run: npm run build && npx electron-builder --mac --${{ matrix.arch }} --publish never --config electron-builder.yml
 
-      - name: Upload dmg
+      # Scope to the matrix arch so the arm64 runner never uploads/publishes the
+      # x64 dmg it may incidentally produce (its bundled sidecars are arm64).
+      - name: Upload dmg artifact
         uses: actions/upload-artifact@v4
         with:
           name: PK-Tunez-Mac-${{ matrix.arch }}
-          path: release/**/*.dmg
+          path: release/**/*-${{ matrix.arch }}.dmg
           if-no-files-found: error
 
-  release:
-    name: Publish GitHub Release
-    needs: [build-win, build-mac]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-
-      - name: Create GitHub Release
+      - name: Publish to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*
-          generate_release_notes: true
+          files: release/**/*-${{ matrix.arch }}.dmg
+          fail_on_unmatched_files: true
