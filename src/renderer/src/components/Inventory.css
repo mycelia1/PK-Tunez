@@ -15,6 +15,31 @@
   font-size: 18px;
 }
 
+.inventory__search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.inventory__search-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.inventory__count {
+  flex-shrink: 0;
+  color: var(--eb-muted);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.inventory__more {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+
 .inventory__list {
   list-style: none;
   margin: 0;
