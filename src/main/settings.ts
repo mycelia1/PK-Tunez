@@ -75,6 +75,9 @@ export function loadHistory(): HistoryEntry[] {
   }
 }
 
+/** Max history entries kept in history.json. Oldest are dropped past this. */
+const MAX_HISTORY_ENTRIES = 20000
+
 export function appendHistory(entry: HistoryEntry): HistoryEntry[] {
   const history = loadHistory()
   const existingIndex = history.findIndex((item) => item.trackId === entry.trackId)
@@ -83,8 +86,15 @@ export function appendHistory(entry: HistoryEntry): HistoryEntry[] {
   } else {
     history.unshift(entry)
   }
-  writeFileSync(historyPath(), JSON.stringify(history.slice(0, 5000), null, 2), 'utf8')
+  writeFileSync(historyPath(), JSON.stringify(history.slice(0, MAX_HISTORY_ENTRIES), null, 2), 'utf8')
   return history
+}
+
+/** Overwrite the whole history file (used by disk reconciliation). */
+export function saveHistory(entries: HistoryEntry[]): HistoryEntry[] {
+  const trimmed = entries.slice(0, MAX_HISTORY_ENTRIES)
+  writeFileSync(historyPath(), JSON.stringify(trimmed, null, 2), 'utf8')
+  return trimmed
 }
 
 export function ensureArchiveFile(archivePath: string): void {

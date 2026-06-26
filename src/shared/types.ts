@@ -65,7 +65,15 @@ export type ScdlEvent =
   | { type: 'done'; success: boolean; message: string }
   | { type: 'error'; message: string }
   | { type: 'rate-limit'; message: string }
-  | { type: 'cooldown'; message: string; seconds: number; reason: 'chunk' | 'throttle' }
+  | {
+      type: 'cooldown'
+      message: string
+      seconds: number
+      reason: 'chunk' | 'throttle'
+      attempt?: number
+      maxAttempts?: number
+      downloaded?: number
+    }
   | { type: 'impersonation-warning' }
 
 export interface ScdlApi {

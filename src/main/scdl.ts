@@ -1,12 +1,13 @@
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process'
-import { existsSync, statSync } from 'fs'
+import { existsSync, readdirSync, statSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { BrowserWindow } from 'electron'
 import { appendHistory, createHistoryEntry } from './archive'
-import { ensureArchiveFile, extractArtistSlug, loadSettings } from './settings'
+import { ensureArchiveFile, extractArtistSlug, loadHistory, loadSettings, saveHistory } from './settings'
 import { getScdlPath, getSpawnEnv } from './binPaths'
 import { decodeScdlOutput } from './scdlEncoding'
 import { resolveCompletedTrackPath } from './resolveAudioPath'
+import { parseTrackFileName, reconcileHistoryEntries } from './reconcileHistory'
 import { IPC } from '../shared/ipc'
 import type { DownloadMode, DownloadRequest, QueueItem, ScdlEvent, AppSettings } from '../shared/types'
 
@@ -25,6 +26,8 @@ let trackCounter = 0
  */
 interface DownloadSession {
   args: string[]
+  /** Folder downloads land in; scanned for leftover .part files when done. */
+  outputPath: string
   chunkSize: number
   cooldownSeconds: number
   maxThrottleRetries: number
@@ -185,15 +188,42 @@ function buildYtDlpArgs(settings: AppSettings): string {
   return parts.join(' ')
 }
 
+/** Folder downloads for this request land in (root for single, artist subfolder otherwise). */
+function resolveOutputPath(request: DownloadRequest, settings: AppSettings): string {
+  if (request.mode === 'single') return settings.downloadDir
+  return join(settings.downloadDir, extractArtistSlug(request.url))
+}
+
+/**
+ * Remove yt-dlp partial-download artifacts (`*.part`, `*.part-Frag*`, `*.ytdl`)
+ * left in a folder. Called only when a session truly ends so that resume between
+ * chunks/throttle retries (which relies on .part files) is never disrupted.
+ */
+function cleanupPartials(dir: string): number {
+  if (!dir || !existsSync(dir)) return 0
+  let removed = 0
+  try {
+    for (const name of readdirSync(dir)) {
+      if (/\.part$|\.part-Frag\d+$|\.ytdl$/i.test(name)) {
+        try {
+          unlinkSync(join(dir, name))
+          removed += 1
+        } catch {
+          // File may be locked or already gone; skip it.
+        }
+      }
+    }
+  } catch {
+    // Folder unreadable; nothing to clean.
+  }
+  return removed
+}
+
 function buildArgs(request: DownloadRequest): string[] {
   const settings = loadSettings()
   ensureArchiveFile(settings.archivePath)
 
-  const artistSlug = extractArtistSlug(request.url)
-  const outputPath =
-    request.mode === 'single'
-      ? settings.downloadDir
-      : join(settings.downloadDir, artistSlug)
+  const outputPath = resolveOutputPath(request, settings)
 
   const args = [
     '-l',
@@ -254,34 +284,8 @@ function parseDestination(line: string): { title: string; artist: string; filePa
 
   const filePath = destinationMatch[1].trim()
   const fileName = filePath.split(/[\\/]/).pop() ?? filePath
-  const bracketMatch = fileName.match(/^\[(\d+)\]\s+(.+)\.[^.]+$/)
-  if (bracketMatch) {
-    const trackId = bracketMatch[1]
-    const full = bracketMatch[2]
-    const split = full.split(' - ')
-    if (split.length >= 2) {
-      return {
-        trackId,
-        artist: split[0].trim(),
-        title: split.slice(1).join(' - ').trim(),
-        filePath
-      }
-    }
-    return { trackId, artist: 'Unknown', title: full, filePath }
-  }
-
-  const withoutExt = fileName.replace(/\.[^.]+$/, '')
-  const split = withoutExt.split(' - ')
-  if (split.length >= 2) {
-    return {
-      trackId: withoutExt,
-      artist: split[0].trim(),
-      title: split.slice(1).join(' - ').trim(),
-      filePath
-    }
-  }
-
-  return { trackId: fileName, artist: 'Unknown', title: fileName, filePath }
+  const { trackId, artist, title } = parseTrackFileName(fileName)
+  return { trackId, artist, title, filePath }
 }
 
 function parseArchiveSkip(line: string): { trackId: string; title: string } | null {
@@ -626,6 +630,17 @@ function attachProcessHandlers(proc: ChildProcessWithoutNullStreams): void {
   })
 
   proc.on('close', (code) => {
+    // Flush any trailing line left in the buffers. Without this, a final
+    // "[download] Download completed" with no trailing newline (common when the
+    // process is killed for a cooldown) would be dropped, desyncing history.
+    if (stdoutBuffer) {
+      handleLine(stdoutBuffer)
+      stdoutBuffer = ''
+    }
+    if (stderrBuffer) {
+      handleLine(stderrBuffer)
+      stderrBuffer = ''
+    }
     if (activeProcess === proc) activeProcess = null
     currentTrackId = null
     onRunClose(code)
@@ -669,8 +684,17 @@ function startCooldown(seconds: number, reason: 'chunk' | 'throttle'): void {
       ? `Cooling down ${seconds}s before the next batch (${s.totalDownloads} downloaded so far)...`
       : `Throttled — backing off ${seconds}s before resuming (attempt ${s.throttleAttempts}/${s.maxThrottleRetries})...`
 
-  emit({ type: 'cooldown', reason, seconds, message })
-  emit({ type: 'status', message })
+  // The renderer turns `seconds` + these fields into a live countdown, so we no
+  // longer emit a separate static 'status' line (it would fight the ticking timer).
+  emit({
+    type: 'cooldown',
+    reason,
+    seconds,
+    message,
+    attempt: reason === 'throttle' ? s.throttleAttempts : undefined,
+    maxAttempts: reason === 'throttle' ? s.maxThrottleRetries : undefined,
+    downloaded: reason === 'chunk' ? s.totalDownloads : undefined
+  })
 
   s.cooldownTimer = setTimeout(() => {
     if (!session || session.cancelled) return
@@ -744,9 +768,35 @@ function finalize(success: boolean, message: string): void {
   if (session.cooldownTimer) {
     clearTimeout(session.cooldownTimer)
   }
+  const outputPath = session.outputPath
   session = null
   activeProcess = null
   currentTrackId = null
+
+  // The process has already exited by the time we finalize, so partial files
+  // left behind are genuinely orphaned and safe to remove.
+  const removed = cleanupPartials(outputPath)
+  if (removed > 0) {
+    emit({ type: 'status', message: `Removed ${removed} leftover partial file(s).` })
+  }
+
+  // Reconcile history against the folder we just downloaded into. The file on
+  // disk is the source of truth, so any track whose "Download completed" log
+  // line was dropped (e.g. the process was killed during a throttle backoff or
+  // chunk cooldown) is still recovered into the inventory here.
+  try {
+    const { merged, added } = reconcileHistoryEntries(loadHistory(), outputPath)
+    if (added.length > 0) {
+      saveHistory(merged)
+      emit({
+        type: 'status',
+        message: `Reconciled inventory — recovered ${added.length} track(s) missing from history.`
+      })
+    }
+  } catch {
+    // Best-effort: never let a reconciliation hiccup block session completion.
+  }
+
   emit({ type: 'done', success, message })
 }
 
@@ -768,6 +818,7 @@ export function startDownload(window: BrowserWindow, request: DownloadRequest): 
 
   session = {
     args,
+    outputPath: resolveOutputPath(request, settings),
     chunkSize: Math.max(0, Math.floor(settings.chunkSize)),
     cooldownSeconds: Math.max(5, Math.floor(settings.chunkCooldownSeconds)),
     maxThrottleRetries: Math.max(0, Math.floor(settings.maxThrottleRetries)),
@@ -793,6 +844,7 @@ export function startDownload(window: BrowserWindow, request: DownloadRequest): 
 export function cancelDownload(): void {
   if (!session && !activeProcess) return
 
+  const outputPath = session?.outputPath ?? null
   if (session) {
     session.cancelled = true
     if (session.cooldownTimer) {
@@ -800,12 +852,81 @@ export function cancelDownload(): void {
       session.cooldownTimer = null
     }
   }
-  if (activeProcess) {
-    activeProcess.kill()
-    activeProcess = null
-  }
   session = null
   currentTrackId = null
-  emit({ type: 'status', message: 'Download cancelled.' })
-  emit({ type: 'done', success: false, message: 'Download cancelled.' })
+  emit({ type: 'status', message: 'Cancelling download…' })
+
+  const finishCancel = (): void => {
+    const removed = outputPath ? cleanupPartials(outputPath) : 0
+    const note = removed > 0 ? ` Removed ${removed} partial file(s).` : ''
+    emit({ type: 'status', message: `Download cancelled.${note}` })
+    emit({ type: 'done', success: false, message: `Download cancelled.${note}` })
+  }
+
+  const proc = activeProcess
+  activeProcess = null
+  if (proc) {
+    // Clean up only after the process exits and releases its .part file handle.
+    proc.once('close', finishCancel)
+    try {
+      proc.kill()
+    } catch {
+      finishCancel()
+    }
+  } else {
+    finishCancel()
+  }
+}
+
+/** True when a download session or scdl process is currently active. */
+export function downloadsBusy(): boolean {
+  return Boolean(session) || Boolean(activeProcess)
+}
+
+/**
+ * Stop any active download and remove leftover partial files. Used on app quit
+ * so closing the window never orphans the scdl process or leaves .part files.
+ */
+export function shutdownDownloads(): Promise<void> {
+  return new Promise((resolve) => {
+    if (!session && !activeProcess) {
+      resolve()
+      return
+    }
+
+    const outputPath = session?.outputPath ?? null
+    if (session) {
+      session.cancelled = true
+      if (session.cooldownTimer) {
+        clearTimeout(session.cooldownTimer)
+        session.cooldownTimer = null
+      }
+    }
+    session = null
+    currentTrackId = null
+
+    const proc = activeProcess
+    activeProcess = null
+
+    let settled = false
+    const done = (): void => {
+      if (settled) return
+      settled = true
+      if (outputPath) cleanupPartials(outputPath)
+      resolve()
+    }
+
+    if (!proc) {
+      done()
+      return
+    }
+    proc.once('close', done)
+    try {
+      proc.kill()
+    } catch {
+      done()
+    }
+    // Safety net so quitting never hangs if the process is slow to exit.
+    setTimeout(done, 3000)
+  })
 }

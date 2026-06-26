@@ -3,6 +3,7 @@ import { existsSync } from 'fs'
 import { join } from 'path'
 import { registerIpcHandlers } from './ipc'
 import { migrateLegacyUserData } from './migrateUserData'
+import { downloadsBusy, shutdownDownloads } from './scdl'
 
 const isDev = !app.isPackaged
 
@@ -61,6 +62,17 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+let isShuttingDown = false
+
+// Kill any in-progress download and sweep leftover .part files before quitting,
+// so closing the app never orphans the scdl process or leaves partial files.
+app.on('before-quit', (event) => {
+  if (isShuttingDown || !downloadsBusy()) return
+  event.preventDefault()
+  isShuttingDown = true
+  void shutdownDownloads().finally(() => app.quit())
 })
 
 app.on('window-all-closed', () => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppSettings, DownloadMode, HistoryEntry, QueueItem, ScdlEvent } from '../../shared/types'
 import { DialogueBox } from './components/DialogueBox'
 import { EbButton } from './components/EbButton'
@@ -14,6 +14,29 @@ import { initSound, playLoopingSessionComplete, playSound, stopLoopingSound, unl
 import { useCtrlCShortcut } from './utils/useCtrlCShortcut'
 import { DEFAULT_DOWNLOAD_MODE, isBulkDownloadMode } from './constants/downloadModes'
 import './App.css'
+
+type CooldownEvent = Extract<ScdlEvent, { type: 'cooldown' }>
+
+/** Render remaining seconds as a friendly "M:SS" (or "Ns" under a minute). */
+function formatCountdown(totalSeconds: number): string {
+  const s = Math.max(0, Math.ceil(totalSeconds))
+  const minutes = Math.floor(s / 60)
+  const seconds = s % 60
+  return minutes > 0 ? `${minutes}:${seconds.toString().padStart(2, '0')}` : `${seconds}s`
+}
+
+/** Build the live cooldown line shown in the dialogue box as the timer ticks. */
+function cooldownMessage(event: CooldownEvent, remainingSeconds: number): string {
+  const time = formatCountdown(remainingSeconds)
+  if (event.reason === 'throttle') {
+    const retry =
+      event.attempt && event.maxAttempts ? ` (retry ${event.attempt}/${event.maxAttempts})` : ''
+    return `\u26A0 SoundCloud rate limit hit — backing off. Resuming in ${time}${retry}`
+  }
+  const downloaded =
+    typeof event.downloaded === 'number' ? ` (${event.downloaded} downloaded so far)` : ''
+  return `Cooling down to avoid throttling — next batch in ${time}${downloaded}`
+}
 
 const defaultSettings: AppSettings = {
   clientId: '',
@@ -49,6 +72,14 @@ export default function App(): JSX.Element {
   const [impersonationTipOpen, setImpersonationTipOpen] = useState(false)
   const [modeConfirmOpen, setModeConfirmOpen] = useState(false)
   const [pendingMode, setPendingMode] = useState<DownloadMode | null>(null)
+  const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const clearCooldownTimer = useCallback(() => {
+    if (cooldownTimerRef.current) {
+      clearInterval(cooldownTimerRef.current)
+      cooldownTimerRef.current = null
+    }
+  }, [])
 
   const refreshHistory = useCallback(async () => {
     const items = await window.scdl.getHistory()
@@ -75,6 +106,11 @@ export default function App(): JSX.Element {
 
   useEffect(() => {
     const unsubscribe = window.scdl.onEvent((event: ScdlEvent) => {
+      // Any event other than a fresh cooldown means the wait is over (or the
+      // session moved on), so stop any running countdown before handling it.
+      if (event.type !== 'cooldown') {
+        clearCooldownTimer()
+      }
       switch (event.type) {
         case 'status':
           setStatusMessage(event.message)
@@ -103,10 +139,30 @@ export default function App(): JSX.Element {
           setStatusVariant('error')
           playSound('error')
           break
-        case 'cooldown':
-          setStatusMessage(event.message)
-          setStatusVariant(event.reason === 'throttle' ? 'error' : 'info')
+        case 'cooldown': {
+          clearCooldownTimer()
+          const cooldownEvent = event
+          const endsAt = Date.now() + cooldownEvent.seconds * 1000
+          const variant = cooldownEvent.reason === 'throttle' ? 'error' : 'info'
+          const tick = (): void => {
+            const remaining = (endsAt - Date.now()) / 1000
+            if (remaining <= 0) {
+              clearCooldownTimer()
+              setStatusMessage(
+                cooldownEvent.reason === 'throttle'
+                  ? 'Backoff complete — resuming downloads...'
+                  : 'Cooldown complete — starting next batch...'
+              )
+              setStatusVariant('info')
+              return
+            }
+            setStatusMessage(cooldownMessage(cooldownEvent, remaining))
+            setStatusVariant(variant)
+          }
+          tick()
+          cooldownTimerRef.current = setInterval(tick, 500)
           break
+        }
         case 'impersonation-warning':
           if (!settings.impersonationTipShown) {
             setImpersonationTipOpen(true)
@@ -138,11 +194,15 @@ export default function App(): JSX.Element {
       }
     })
 
-    return unsubscribe
-  }, [refreshHistory, settings.impersonationTipShown])
+    return () => {
+      unsubscribe()
+      clearCooldownTimer()
+    }
+  }, [refreshHistory, settings.impersonationTipShown, clearCooldownTimer])
 
   const handleDownload = async (): Promise<void> => {
     if (!url.trim()) return
+    clearCooldownTimer()
     setIsBusy(true)
     setQueue([])
     setStatusMessage('PK DOWNLOAD engaged! Scanning psychic signal...')
@@ -160,11 +220,12 @@ export default function App(): JSX.Element {
   }
 
   const handleCancel = useCallback(async (): Promise<void> => {
+    clearCooldownTimer()
     await window.scdl.cancelDownload()
     setIsBusy(false)
     setStatusMessage('Download cancelled.')
     setStatusVariant('info')
-  }, [])
+  }, [clearCooldownTimer])
 
   useCtrlCShortcut(isBusy, () => {
     void handleCancel()
