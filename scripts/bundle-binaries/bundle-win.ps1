@@ -98,6 +98,18 @@ if ($selfTestExit -ne 0 -or ($selfTestOut -notmatch 'SELFTEST OK')) {
 }
 Write-Host "scdl.exe OK (import chain + bundled scdl.cfg verified)"
 
+# Verify the embedded yt-dlp is reachable via the pk-ytdlp entry point (used for
+# YouTube audio downloads).
+$ErrorActionPreference = 'Continue'
+$ytdlpOut = (& $scdlExe pk-ytdlp --version 2>&1 | Out-String)
+$ytdlpExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+if ($ytdlpExit -ne 0) {
+  Write-Host $ytdlpOut
+  throw "scdl.exe pk-ytdlp --version failed (exit $ytdlpExit)"
+}
+Write-Host "scdl.exe pk-ytdlp OK (embedded yt-dlp reachable: $($ytdlpOut.Trim()))"
+
 Write-Host "`nDone. Binaries written to $outDir"
 Write-Host "Cleaning up work dir..."
 Remove-Item -Recurse -Force $workDir

@@ -46,6 +46,31 @@
   color: var(--eb-muted);
 }
 
+.psychic-signal__source-badge {
+  justify-self: start;
+  font-family: var(--font-heading);
+  font-size: 10px;
+  padding: 6px 10px;
+  border: 3px solid var(--eb-outline);
+  border-radius: var(--radius-md);
+  box-shadow: 0 3px 0 var(--eb-outline);
+}
+
+.psychic-signal__source-badge--soundcloud {
+  background: var(--eb-yellow);
+}
+
+.psychic-signal__source-badge--youtube {
+  background: var(--eb-pink);
+}
+
+.psychic-signal__yt-note {
+  margin: 0;
+  font-size: 16px;
+  color: var(--eb-muted);
+  line-height: 1.4;
+}
+
 .psychic-signal__download {
   justify-self: start;
 }

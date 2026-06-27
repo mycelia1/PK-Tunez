@@ -4,10 +4,13 @@ import { join } from 'path'
 import { BrowserWindow } from 'electron'
 import { appendHistory, createHistoryEntry } from './archive'
 import { ensureArchiveFile, extractArtistSlug, loadHistory, loadSettings, saveHistory } from './settings'
-import { getScdlPath, getSpawnEnv } from './binPaths'
+import { getScdlPath, getSpawnEnv, getYtDlpInvocation } from './binPaths'
 import { decodeScdlOutput } from './scdlEncoding'
 import { resolveCompletedTrackPath } from './resolveAudioPath'
 import { parseTrackFileName, reconcileHistoryEntries } from './reconcileHistory'
+import { collectSidecars, findSidecarForMedia, historyEntryFromSidecar } from './infoSidecar'
+import { classifyYouTubeUrl, detectSource, youtubeFolderSlug } from '../shared/sources'
+import type { DownloadSource } from '../shared/sources'
 import { IPC } from '../shared/ipc'
 import type { DownloadMode, DownloadRequest, QueueItem, ScdlEvent, AppSettings } from '../shared/types'
 
@@ -25,6 +28,8 @@ let trackCounter = 0
  * downloaded tracks are skipped, making each run an effective resume.
  */
 interface DownloadSession {
+  /** Executable to spawn (bundled scdl for SoundCloud, scdl/yt-dlp for YouTube). */
+  command: string
   args: string[]
   /** Folder downloads land in; scanned for leftover .part files when done. */
   outputPath: string
@@ -153,6 +158,11 @@ function buildYtDlpArgs(settings: AppSettings): string {
   const maxSleep = Math.max(minSleep, settings.maxSleepIntervalSeconds)
   const parts: string[] = ['--sleep-interval', String(minSleep), '--max-sleep-interval', String(maxSleep)]
 
+  // Write a per-track .info.json sidecar so history is built from exact metadata
+  // (id, title, uploader, webpage_url, filesize) instead of scraped stdout. The
+  // sidecars are ingested and swept when the session finalizes.
+  parts.push('--write-info-json')
+
   if (settings.sleepRequestsSeconds > 0) {
     // Spaces out metadata/API requests, which is what actually trips 403/429.
     parts.push('--sleep-requests', String(settings.sleepRequestsSeconds))
@@ -251,6 +261,73 @@ function buildArgs(request: DownloadRequest): string[] {
   return args
 }
 
+/**
+ * Build the yt-dlp argument list for an audio-only YouTube download (single
+ * video, playlist, or channel - auto-detected from the URL). These are passed
+ * to yt-dlp directly as argv (no shell), so values with spaces (the output
+ * template, the match filter) are single elements and need no quoting.
+ */
+function buildYouTubeArgs(request: DownloadRequest): {
+  args: string[]
+  outputPath: string
+} {
+  const settings = loadSettings()
+  ensureArchiveFile(settings.archivePath)
+
+  const kind = classifyYouTubeUrl(request.url)
+  const slug = youtubeFolderSlug(request.url)
+  const outputPath = slug ? join(settings.downloadDir, slug) : settings.downloadDir
+  const outputTemplate = join(outputPath, '%(uploader)s - %(title)s [%(id)s].%(ext)s')
+
+  const args: string[] = [
+    request.url,
+    // Prefer a ready-made m4a/AAC stream so extraction is a remux (no re-encode);
+    // only fall back to other audio when m4a is unavailable.
+    '-f',
+    'bestaudio[ext=m4a]/bestaudio/best',
+    '-x',
+    '--audio-format',
+    'm4a',
+    '--audio-quality',
+    '0',
+    '--embed-thumbnail',
+    '--embed-metadata',
+    '--write-info-json',
+    '--no-overwrites',
+    // One progress update per line so live percent parsing works (yt-dlp uses
+    // carriage returns by default, which our line splitter would buffer).
+    '--newline',
+    '--download-archive',
+    settings.archivePath,
+    '-o',
+    outputTemplate
+  ]
+
+  if (kind === 'video') {
+    args.push('--no-playlist')
+  } else {
+    // Playlist/channel: grab every entry and keep going past individual failures.
+    args.push('--yes-playlist', '--ignore-errors')
+  }
+
+  const minSleep = Math.max(0, settings.sleepIntervalSeconds)
+  const maxSleep = Math.max(minSleep, settings.maxSleepIntervalSeconds)
+  args.push('--sleep-interval', String(minSleep), '--max-sleep-interval', String(maxSleep))
+  if (settings.sleepRequestsSeconds > 0) {
+    args.push('--sleep-requests', String(settings.sleepRequestsSeconds))
+  }
+  args.push('--retries', '10', '--fragment-retries', '10', '--retry-sleep', '5')
+  if (settings.limitRate.trim()) {
+    args.push('--limit-rate', settings.limitRate.trim())
+  }
+  if (settings.limitTrackLength) {
+    const seconds = Math.max(1, settings.maxTrackLengthMinutes) * 60
+    args.push('--match-filter', `duration < ${seconds}`)
+  }
+
+  return { args, outputPath }
+}
+
 function parsePercent(line: string): number | null {
   const percentMatch = line.match(/(\d{1,3}(?:\.\d+)?)%/)
   if (percentMatch) {
@@ -279,7 +356,11 @@ function parsePercent(line: string): number | null {
 }
 
 function parseDestination(line: string): { title: string; artist: string; filePath: string; trackId: string } | null {
-  const destinationMatch = line.match(/\[download\]\s+Destination:\s+(.+)$/i)
+  // yt-dlp emits `[ExtractAudio] Destination:` for the final m4a after `-x`; prefer
+  // that over the intermediate `[download] Destination:` (often a webm/opus temp).
+  const destinationMatch =
+    line.match(/\[ExtractAudio\]\s+Destination:\s+(.+)$/i) ??
+    line.match(/\[download\]\s+Destination:\s+(.+)$/i)
   if (!destinationMatch) return null
 
   const filePath = destinationMatch[1].trim()
@@ -350,6 +431,7 @@ function parseTrackIdFromLine(line: string): string | null {
 let lastRequestUrl = ''
 let lastDestinationPath = ''
 let currentSoundCloudTrackId: string | null = null
+let currentSource: DownloadSource = 'soundcloud'
 
 function isNumericSoundCloudTrackId(id: string | null | undefined): id is string {
   return typeof id === 'string' && /^\d+$/.test(id)
@@ -510,6 +592,7 @@ function handleLine(line: string): void {
   if (percent !== null && currentTrackId) {
     const existing = queue.get(currentTrackId)
     if (existing) {
+      const justCompleted = percent >= 100 && existing.status !== 'completed'
       upsertQueue({
         ...existing,
         progress: percent,
@@ -517,10 +600,20 @@ function handleLine(line: string): void {
         status: percent >= 100 ? 'completed' : 'downloading'
       })
       emit({ type: 'progress', id: currentTrackId, progress: percent, indeterminate: false })
+
+      // YouTube has no "[download] Download completed" line (that branch is
+      // SoundCloud's), so count completions here for the session summary; the
+      // history rows themselves are reconciled from .info.json at finalize().
+      if (currentSource === 'youtube' && justCompleted && session) {
+        session.totalDownloads += 1
+      }
     }
   }
 
-  if (lower.includes('[download] download completed') || lower === '[download] download completed') {
+  if (
+    currentSource === 'soundcloud' &&
+    (lower.includes('[download] download completed') || lower === '[download] download completed')
+  ) {
     const id = currentTrackId ?? makeTrackId()
     const existing = queue.get(id)
     const title = existing?.title ?? 'Unknown track'
@@ -531,10 +624,22 @@ function handleLine(line: string): void {
     const sizeBytes = safeFileSize(filePath)
     const trackSlug = soundCloudTrackId ?? id
 
+    // Prefer the .info.json sidecar (exact id/title/artist/url/size) over scraped
+    // stdout values; fall back to the scraped values when no sidecar is present.
+    const sidecarPath = findSidecarForMedia(filePath)
+    const sidecar = sidecarPath ? historyEntryFromSidecar(sidecarPath, filePath) : null
+
+    const finalTitle = sidecar?.title || title
+    const finalArtist =
+      sidecar && sidecar.artist && sidecar.artist !== 'Unknown' ? sidecar.artist : artist
+    const finalUrl = sidecar?.url || requestUrlFromContext(trimmed)
+    const finalTrackId = sidecar?.trackId || trackSlug
+    const finalSize = sidecar?.sizeBytes || sizeBytes
+
     upsertTrackItem({
       id,
-      title,
-      artist,
+      title: finalTitle,
+      artist: finalArtist,
       status: 'completed',
       progress: 100,
       indeterminate: false
@@ -542,23 +647,23 @@ function handleLine(line: string): void {
 
     appendHistory(
       createHistoryEntry({
-        trackId: trackSlug,
-        title,
-        artist,
-        url: requestUrlFromContext(trimmed),
+        trackId: finalTrackId,
+        title: finalTitle,
+        artist: finalArtist,
+        url: finalUrl,
         filePath,
-        sizeBytes
+        sizeBytes: finalSize
       })
     )
 
     emit({
       type: 'track-complete',
       id,
-      title,
-      artist,
-      url: requestUrlFromContext(trimmed),
+      title: finalTitle,
+      artist: finalArtist,
+      url: finalUrl,
       filePath,
-      sizeBytes
+      sizeBytes: finalSize
     })
 
     if (session) {
@@ -751,7 +856,7 @@ function spawnRun(): void {
   s.killedForCooldown = false
 
   try {
-    activeProcess = spawn(getScdlPath(), s.args, {
+    activeProcess = spawn(s.command, s.args, {
       windowsHide: true,
       env: getSpawnEnv()
     })
@@ -763,27 +868,13 @@ function spawnRun(): void {
   }
 }
 
-function finalize(success: boolean, message: string): void {
-  if (!session) return
-  if (session.cooldownTimer) {
-    clearTimeout(session.cooldownTimer)
-  }
-  const outputPath = session.outputPath
-  session = null
-  activeProcess = null
-  currentTrackId = null
-
-  // The process has already exited by the time we finalize, so partial files
-  // left behind are genuinely orphaned and safe to remove.
+/** Sweep partials, reconcile history from disk/sidecars, and remove sidecars. */
+function postSessionFolderCleanup(outputPath: string): void {
   const removed = cleanupPartials(outputPath)
   if (removed > 0) {
     emit({ type: 'status', message: `Removed ${removed} leftover partial file(s).` })
   }
 
-  // Reconcile history against the folder we just downloaded into. The file on
-  // disk is the source of truth, so any track whose "Download completed" log
-  // line was dropped (e.g. the process was killed during a throttle backoff or
-  // chunk cooldown) is still recovered into the inventory here.
   try {
     const { merged, added } = reconcileHistoryEntries(loadHistory(), outputPath)
     if (added.length > 0) {
@@ -797,6 +888,26 @@ function finalize(success: boolean, message: string): void {
     // Best-effort: never let a reconciliation hiccup block session completion.
   }
 
+  for (const sidecar of collectSidecars(outputPath)) {
+    try {
+      unlinkSync(sidecar)
+    } catch {
+      // File may be locked or already gone; skip it.
+    }
+  }
+}
+
+function finalize(success: boolean, message: string): void {
+  if (!session) return
+  if (session.cooldownTimer) {
+    clearTimeout(session.cooldownTimer)
+  }
+  const outputPath = session.outputPath
+  session = null
+  activeProcess = null
+  currentTrackId = null
+
+  postSessionFolderCleanup(outputPath)
   emit({ type: 'done', success, message })
 }
 
@@ -814,12 +925,35 @@ export function startDownload(window: BrowserWindow, request: DownloadRequest): 
   lastDestinationPath = ''
 
   const settings = loadSettings()
-  const args = buildArgs(request)
+  const source = detectSource(request.url)
+  currentSource = source
+
+  let command: string
+  let args: string[]
+  let outputPath: string
+  // YouTube routes through the embedded yt-dlp (audio-only); SoundCloud through
+  // scdl. Chunk cooldowns are SoundCloud-throttle-specific, so YouTube runs with
+  // chunkSize 0 (single pass, history reconciled from sidecars at finalize).
+  let chunkSize = Math.max(0, Math.floor(settings.chunkSize))
+
+  if (source === 'youtube') {
+    const yt = buildYouTubeArgs(request)
+    const invocation = getYtDlpInvocation()
+    command = invocation.command
+    args = [...invocation.prelude, ...yt.args]
+    outputPath = yt.outputPath
+    chunkSize = 0
+  } else {
+    command = getScdlPath()
+    args = buildArgs(request)
+    outputPath = resolveOutputPath(request, settings)
+  }
 
   session = {
+    command,
     args,
-    outputPath: resolveOutputPath(request, settings),
-    chunkSize: Math.max(0, Math.floor(settings.chunkSize)),
+    outputPath,
+    chunkSize,
     cooldownSeconds: Math.max(5, Math.floor(settings.chunkCooldownSeconds)),
     maxThrottleRetries: Math.max(0, Math.floor(settings.maxThrottleRetries)),
     throttleAttempts: 0,
@@ -832,7 +966,8 @@ export function startDownload(window: BrowserWindow, request: DownloadRequest): 
     cooldownTimer: null
   }
 
-  emit({ type: 'status', message: `Starting SCDL: scdl ${args.join(' ')}` })
+  const label = source === 'youtube' ? 'YouTube (audio)' : 'SoundCloud'
+  emit({ type: 'status', message: `Starting ${label} download: ${command} ${args.join(' ')}` })
   spawnRun()
 
   if (!session) {
@@ -857,10 +992,9 @@ export function cancelDownload(): void {
   emit({ type: 'status', message: 'Cancelling download…' })
 
   const finishCancel = (): void => {
-    const removed = outputPath ? cleanupPartials(outputPath) : 0
-    const note = removed > 0 ? ` Removed ${removed} partial file(s).` : ''
-    emit({ type: 'status', message: `Download cancelled.${note}` })
-    emit({ type: 'done', success: false, message: `Download cancelled.${note}` })
+    if (outputPath) postSessionFolderCleanup(outputPath)
+    emit({ type: 'status', message: 'Download cancelled.' })
+    emit({ type: 'done', success: false, message: 'Download cancelled.' })
   }
 
   const proc = activeProcess

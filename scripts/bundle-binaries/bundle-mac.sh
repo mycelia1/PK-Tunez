@@ -99,5 +99,13 @@ if ! printf '%s' "${SELFTEST_OUT}" | grep -qF 'SELFTEST OK'; then
 fi
 echo "scdl OK (import chain + bundled scdl.cfg verified)"
 
+# Verify the embedded yt-dlp is reachable via the pk-ytdlp entry point (used for
+# YouTube audio downloads).
+if ! "${OUT_DIR}/scdl" pk-ytdlp --version >/dev/null 2>&1; then
+  echo "scdl pk-ytdlp --version failed" >&2
+  exit 1
+fi
+echo "scdl pk-ytdlp OK (embedded yt-dlp reachable)"
+
 echo ""
 echo "Done. Binaries written to ${OUT_DIR}"

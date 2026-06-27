@@ -45,6 +45,16 @@ function parseTrackFileName(fileName) {
     return { trackId, artist: 'Unknown', title: full }
   }
   const withoutExt = fileName.replace(/\.[^.]+$/, '')
+  const ytIdMatch = withoutExt.match(/^(.+)\s+\[([^\]]+)\]$/)
+  if (ytIdMatch) {
+    const core = ytIdMatch[1]
+    const trackId = ytIdMatch[2].trim()
+    const split = core.split(' - ')
+    if (split.length >= 2) {
+      return { trackId, artist: split[0].trim(), title: split.slice(1).join(' - ').trim() }
+    }
+    return { trackId, artist: 'Unknown', title: core.trim() }
+  }
   const split = withoutExt.split(' - ')
   if (split.length >= 2) {
     return { trackId: withoutExt, artist: split[0].trim(), title: split.slice(1).join(' - ').trim() }

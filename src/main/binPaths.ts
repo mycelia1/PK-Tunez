@@ -33,6 +33,21 @@ export function hasBundledScdl(): boolean {
 }
 
 /**
+ * How to invoke yt-dlp for non-SoundCloud (YouTube) downloads.
+ *
+ * The yt-dlp engine is embedded inside the bundled scdl binary and exposed via
+ * its `pk-ytdlp` launcher entry point, so packaged builds ship no separate
+ * binary. In development without a bundled binary, fall back to a system
+ * `yt-dlp` on PATH.
+ */
+export function getYtDlpInvocation(): { command: string; prelude: string[] } {
+  if (hasBundledScdl()) {
+    return { command: getScdlPath(), prelude: ['pk-ytdlp'] }
+  }
+  return { command: isWindows ? 'yt-dlp.exe' : 'yt-dlp', prelude: [] }
+}
+
+/**
  * Spawn environment with the bundled bin directory prepended to PATH so that
  * scdl/yt-dlp can locate the bundled ffmpeg without a system install.
  */

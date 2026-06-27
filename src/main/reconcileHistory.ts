@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
 import type { HistoryEntry } from '../shared/types'
+import { findSidecarForMedia, historyEntryFromSidecar } from './infoSidecar'
 
 /** Audio extensions scdl/yt-dlp can produce that count as library tracks. */
 const AUDIO_EXTENSIONS = new Set([
@@ -48,6 +49,19 @@ export function parseTrackFileName(fileName: string): {
   }
 
   const withoutExt = fileName.replace(/\.[^.]+$/, '')
+
+  // YouTube output template: `%(uploader)s - %(title)s [%(id)s].%(ext)s`
+  const ytIdMatch = withoutExt.match(/^(.+)\s+\[([^\]]+)\]$/)
+  if (ytIdMatch) {
+    const core = ytIdMatch[1]
+    const trackId = ytIdMatch[2].trim()
+    const split = core.split(' - ')
+    if (split.length >= 2) {
+      return { trackId, artist: split[0].trim(), title: split.slice(1).join(' - ').trim() }
+    }
+    return { trackId, artist: 'Unknown', title: core.trim() }
+  }
+
   const split = withoutExt.split(' - ')
   if (split.length >= 2) {
     return { trackId: withoutExt, artist: split[0].trim(), title: split.slice(1).join(' - ').trim() }
@@ -104,6 +118,14 @@ function normalizePathKey(filePath: string): string {
 }
 
 function buildEntryFromFile(filePath: string): HistoryEntry {
+  // Prefer the exact metadata in a sibling .info.json sidecar (real id + url),
+  // falling back to parsing the file name when no sidecar is present.
+  const sidecarPath = findSidecarForMedia(filePath)
+  if (sidecarPath) {
+    const fromSidecar = historyEntryFromSidecar(sidecarPath, filePath)
+    if (fromSidecar) return fromSidecar
+  }
+
   const fileName = filePath.split(/[\\/]/).pop() ?? filePath
   const { trackId, artist, title } = parseTrackFileName(fileName)
 

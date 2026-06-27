@@ -34,6 +34,14 @@ if __name__ == "__main__":
     if "--pk-selftest" in sys.argv:
         sys.exit(_pk_selftest())
 
+    # Dispatch to the embedded yt-dlp CLI for non-SoundCloud sources (e.g. audio
+    # from YouTube). yt-dlp is already collected into this binary, so this exposes
+    # it as `scdl pk-ytdlp <yt-dlp args...>` with no extra binary or download.
+    if len(sys.argv) > 1 and sys.argv[1] == "pk-ytdlp":
+        from yt_dlp import main as ytdlp_main
+
+        sys.exit(ytdlp_main(sys.argv[2:]))
+
     from scdl.scdl import _main
 
     sys.exit(_main())
