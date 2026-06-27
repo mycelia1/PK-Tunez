@@ -105,3 +105,14 @@ export function youtubeFolderSlug(rawUrl: string): string | null {
 function sanitizeSlug(value: string): string {
   return value.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'youtube'
 }
+
+/** Safe folder name for a human-readable YouTube playlist or channel title. */
+export function sanitizeFolderName(value: string): string {
+  const trimmed = value
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[.\s]+$/g, '')
+  const capped = trimmed.slice(0, 120).replace(/[.\s]+$/g, '')
+  return capped || 'youtube'
+}

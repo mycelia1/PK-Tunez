@@ -24,14 +24,14 @@ asarUnpack:
   - resources/bin/**
 
 win:
-  icon: resources/icon.png
+  icon: assets/icons/icon.png
   target:
     - target: nsis
       arch:
         - x64
   artifactName: ${productName}-Windows-${version}-Setup.${ext}
   extraResources:
-    - from: resources/icon.png
+    - from: assets/icons/icon.png
       to: icon.png
     - from: resources/bin/win32
       to: bin
@@ -49,7 +49,7 @@ nsis:
   shortcutName: PK-Tunez
 
 mac:
-  icon: resources/icon.png
+  icon: assets/icons/icon.png
   category: public.app-category.music
   target:
     - target: dmg
@@ -58,7 +58,7 @@ mac:
         - x64
   artifactName: ${productName}-Mac-${version}-${arch}.${ext}
   extraResources:
-    - from: resources/icon.png
+    - from: assets/icons/icon.png
       to: icon.png
     - from: resources/bin/darwin
       to: bin

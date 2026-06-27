@@ -1,5 +1,5 @@
-import { ChildProcessWithoutNullStreams, spawn } from 'child_process'
-import { existsSync, readdirSync, statSync, unlinkSync } from 'fs'
+import { ChildProcessWithoutNullStreams, spawn, spawnSync } from 'child_process'
+import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { BrowserWindow } from 'electron'
 import { appendHistory, createHistoryEntry } from './archive'
@@ -9,8 +9,13 @@ import { decodeScdlOutput } from './scdlEncoding'
 import { resolveCompletedTrackPath } from './resolveAudioPath'
 import { parseTrackFileName, reconcileHistoryEntries } from './reconcileHistory'
 import { collectSidecars, findSidecarForMedia, historyEntryFromSidecar } from './infoSidecar'
-import { classifyYouTubeUrl, detectSource, youtubeFolderSlug } from '../shared/sources'
-import type { DownloadSource } from '../shared/sources'
+import {
+  classifyYouTubeUrl,
+  detectSource,
+  sanitizeFolderName,
+  youtubeFolderSlug
+} from '../shared/sources'
+import type { DownloadSource, YouTubeKind } from '../shared/sources'
 import { IPC } from '../shared/ipc'
 import type { DownloadMode, DownloadRequest, QueueItem, ScdlEvent, AppSettings } from '../shared/types'
 
@@ -262,6 +267,42 @@ function buildArgs(request: DownloadRequest): string[] {
 }
 
 /**
+ * yt-dlp status lines that must not become fake Party Roster rows (they never
+ * get a matching destination/completion event).
+ */
+function isYtDlpNoiseLine(line: string): boolean {
+  const lower = line.toLowerCase()
+  if (/because of --no-playlist/i.test(line)) return true
+  if (/downloading just the video/i.test(lower)) return true
+  if (/^downloading playlist:/i.test(lower.trim())) return true
+  return false
+}
+
+/** Resolve a human-readable folder name for a playlist/channel before downloading. */
+function fetchYouTubeBulkFolderName(url: string, kind: YouTubeKind): string {
+  const fallback = youtubeFolderSlug(url) ?? (kind === 'channel' ? 'youtube-channel' : 'youtube-playlist')
+  const { command, prelude } = getYtDlpInvocation()
+  const fields = kind === 'playlist' ? ['playlist_title', 'title'] : ['channel', 'uploader']
+
+  for (const field of fields) {
+    const result = spawnSync(
+      command,
+      [...prelude, '--flat-playlist', '--print', field, '--playlist-end', '1', '--skip-download', url],
+      { encoding: 'utf8', windowsHide: true, timeout: 45_000, env: getSpawnEnv() }
+    )
+    const line = (result.stdout ?? '')
+      .split(/\r?\n/)
+      .map((entry) => entry.trim())
+      .find(Boolean)
+    if (line && !/^NA$/i.test(line)) {
+      return sanitizeFolderName(line)
+    }
+  }
+
+  return fallback
+}
+
+/**
  * Build the yt-dlp argument list for an audio-only YouTube download (single
  * video, playlist, or channel - auto-detected from the URL). These are passed
  * to yt-dlp directly as argv (no shell), so values with spaces (the output
@@ -275,9 +316,16 @@ function buildYouTubeArgs(request: DownloadRequest): {
   ensureArchiveFile(settings.archivePath)
 
   const kind = classifyYouTubeUrl(request.url)
-  const slug = youtubeFolderSlug(request.url)
-  const outputPath = slug ? join(settings.downloadDir, slug) : settings.downloadDir
-  const outputTemplate = join(outputPath, '%(uploader)s - %(title)s [%(id)s].%(ext)s')
+  const outputPath =
+    kind === 'video'
+      ? settings.downloadDir
+      : join(settings.downloadDir, fetchYouTubeBulkFolderName(request.url, kind))
+
+  if (kind !== 'video') {
+    mkdirSync(outputPath, { recursive: true })
+  }
+
+  const outputTemplate = join(outputPath, '%(uploader)s - %(title)s.%(ext)s')
 
   const args: string[] = [
     request.url,
@@ -568,7 +616,7 @@ function handleLine(line: string): void {
   }
 
   const trackInfo = parseTrackTitle(trimmed)
-  if (trackInfo && !destination) {
+  if (trackInfo && !destination && !(currentSource === 'youtube' && isYtDlpNoiseLine(trimmed))) {
     currentTrackId = currentTrackId ?? makeTrackId()
     if (!queue.has(currentTrackId)) {
       upsertQueue({

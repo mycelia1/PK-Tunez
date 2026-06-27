@@ -207,10 +207,17 @@ Custom sounds live in `src/renderer/src/assets/sfx/`:
 
 ## Assets
 
-- Logo: `src/renderer/src/assets/pktunez.png`
-- Window icon: `resources/icon.png`
-- Sprites: `src/renderer/src/assets/sprites/`
+Graphic assets live under `assets/`:
+
+- App / window icon: `assets/icons/icon.png`
+- Logo: `assets/images/pktunez.png`
+- Sprites: `assets/images/sprites/`
+
+Sound effects stay with the renderer bundle in `src/renderer/src/assets/sfx/`:
+
 - Session-complete jingles: `src/renderer/src/assets/sfx/session-complete/` (`.wav` or `.mp3`; each session picks one at random until all have played, then shuffles again)
+
+Bundled sidecar binaries (scdl, ffmpeg, yt-dlp) are built into `resources/bin/` at release time.
 
 ## Troubleshooting
 

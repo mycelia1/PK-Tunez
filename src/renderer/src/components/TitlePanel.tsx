@@ -1,4 +1,4 @@
-import logoUrl from '../assets/pktunez.png'
+import logoUrl from '@assets/images/pktunez.png'
 import './TitlePanel.css'
 
 export function TitlePanel(): JSX.Element {

@@ -7,5 +7,5 @@ const root = join(__dirname, '..')
 const outResources = join(root, 'out', 'resources')
 
 mkdirSync(outResources, { recursive: true })
-copyFileSync(join(root, 'resources', 'icon.png'), join(outResources, 'icon.png'))
-console.log('Copied resources/icon.png to out/resources/')
+copyFileSync(join(root, 'assets', 'icons', 'icon.png'), join(outResources, 'icon.png'))
+console.log('Copied assets/icons/icon.png to out/resources/')
