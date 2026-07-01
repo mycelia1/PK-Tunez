@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc'
-import type { AppSettings, DownloadRequest, ScdlEvent } from '../shared/types'
+import type { AppSettings, DownloadRequest, ScdlEvent, MixState } from '../shared/types'
 
 const api = {
   startDownload: (request: DownloadRequest) => ipcRenderer.invoke(IPC.START_DOWNLOAD, request),
@@ -26,6 +26,12 @@ const api = {
     ipcRenderer.invoke(IPC.OPEN_IN_DEFAULT_PLAYER, filePath),
   openFolder: (folderPath: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC.OPEN_FOLDER, folderPath),
+  getSessions: () => ipcRenderer.invoke(IPC.GET_SESSIONS),
+  getMix: () => ipcRenderer.invoke(IPC.GET_MIX),
+  saveMix: (mix: MixState): Promise<MixState> => ipcRenderer.invoke(IPC.SAVE_MIX, mix),
+  clearMix: (): Promise<void> => ipcRenderer.invoke(IPC.CLEAR_MIX),
+  openMixPlaylist: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke(IPC.OPEN_MIX_PLAYLIST),
+  exportMix: () => ipcRenderer.invoke(IPC.EXPORT_MIX),
   onEvent: (callback: (event: ScdlEvent) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: ScdlEvent) => callback(payload)
     ipcRenderer.on(IPC.EVENT, listener)

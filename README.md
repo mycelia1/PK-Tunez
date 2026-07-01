@@ -219,6 +219,19 @@ Sound effects stay with the renderer bundle in `src/renderer/src/assets/sfx/`:
 
 Bundled sidecar binaries (scdl, ffmpeg, yt-dlp) are built into `resources/bin/` at release time.
 
+## Session Log
+
+Each PK DOWNLOAD saves a frozen end-state snapshot (Party Roster, status line, URL, outcome) to `%APPDATA%/pk-tunez/sessions.json` (last 50 sessions). Use the **Session Log** dropdown below the dialogue box to review completed, cancelled, or failed runs.
+
+## Mix Lab
+
+Build a DJ prep playlist from Inventory:
+
+1. Click **Add to mix** on tracks you want (file must exist on disk).
+2. Name your mix and drag to reorder in **Mix Lab**.
+3. **Launch playlist** opens a temporary `.m3u` in your default player.
+4. **Export mix** copies audio files to `{downloadDir}/mixes/{mix-name}/` (originals stay in Inventory).
+
 ## Troubleshooting
 
 **HTTP 403 / 429 (throttling):** SoundCloud is rate-limiting. PK-Tunez automatically backs off and resumes (see [Throttle protection](#throttle-protection-psi-menu)). If it keeps happening, lower the chunk size, raise the cooldown, drop the auth token for public batches, or enable browser impersonation.

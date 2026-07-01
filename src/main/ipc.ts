@@ -5,8 +5,16 @@ import { cancelDownload, startDownload } from './scdl'
 import { loadHistory } from './archive'
 import { ensureArchiveFile, loadSettings, saveSettings } from './settings'
 import { resolveAudioPath } from './resolveAudioPath'
+import { loadSessions } from './sessionLog'
+import {
+  clearMixState,
+  exportMixCopy,
+  getMixState,
+  openMixPlaylist,
+  saveMixState
+} from './mixActions'
 import { IPC } from '../shared/ipc'
-import type { AppSettings, DownloadRequest } from '../shared/types'
+import type { AppSettings, DownloadRequest, MixState } from '../shared/types'
 
 export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.START_DOWNLOAD, (event, request: DownloadRequest) => {
@@ -26,6 +34,20 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.SAVE_SETTINGS, (_event, partial: Partial<AppSettings>) => saveSettings(partial))
 
   ipcMain.handle(IPC.GET_HISTORY, () => loadHistory())
+
+  ipcMain.handle(IPC.GET_SESSIONS, () => loadSessions())
+
+  ipcMain.handle(IPC.GET_MIX, () => getMixState())
+
+  ipcMain.handle(IPC.SAVE_MIX, (_event, mix: MixState) => saveMixState(mix))
+
+  ipcMain.handle(IPC.CLEAR_MIX, () => {
+    clearMixState()
+  })
+
+  ipcMain.handle(IPC.OPEN_MIX_PLAYLIST, () => openMixPlaylist())
+
+  ipcMain.handle(IPC.EXPORT_MIX, () => exportMixCopy())
 
   ipcMain.handle(IPC.PICK_FOLDER, async () => {
     const result = await dialog.showOpenDialog({

@@ -9,7 +9,9 @@ import './PartyRoster.css'
 interface PartyRosterProps {
   items: QueueItem[]
   isBusy: boolean
-  onCancel: () => void
+  onCancel?: () => void
+  readOnly?: boolean
+  emptyMessage?: string
 }
 
 const statusLabel: Record<QueueItem['status'], string> = {
@@ -48,12 +50,18 @@ function StatusBadge({ item }: { item: QueueItem }): JSX.Element {
   return <span className="party-roster__status">{statusLabel[item.status]}</span>
 }
 
-export function PartyRoster({ items, isBusy, onCancel }: PartyRosterProps): JSX.Element {
+export function PartyRoster({
+  items,
+  isBusy,
+  onCancel,
+  readOnly = false,
+  emptyMessage = 'No tracks in queue. Enter a psychic signal to begin.'
+}: PartyRosterProps): JSX.Element {
   return (
     <section className="party-roster eb-panel" aria-label="Download queue party roster">
       <div className="party-roster__header">
         <h2 className="eb-title party-roster__title">Party Roster</h2>
-        {isBusy && (
+        {!readOnly && isBusy && onCancel && (
           <EbButton
             type="button"
             className="eb-button eb-button--cancel"
@@ -66,7 +74,7 @@ export function PartyRoster({ items, isBusy, onCancel }: PartyRosterProps): JSX.
       </div>
 
       {items.length === 0 ? (
-        <p className="party-roster__empty">No tracks in queue. Enter a psychic signal to begin.</p>
+        <p className="party-roster__empty">{emptyMessage}</p>
       ) : (
         <ul className="party-roster__list">
           {items.map((item) => (

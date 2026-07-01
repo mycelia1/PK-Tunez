@@ -7,8 +7,11 @@ import { ensureArchiveFile, extractArtistSlug, loadHistory, loadSettings, saveHi
 import { getScdlPath, getSpawnEnv, getYtDlpInvocation } from './binPaths'
 import { decodeScdlOutput } from './scdlEncoding'
 import { resolveCompletedTrackPath } from './resolveAudioPath'
-import { parseTrackFileName, reconcileHistoryEntries } from './reconcileHistory'
+import { parseTrackFileName, reconcileHistoryEntries, collectAudioFiles } from './reconcileHistory'
 import { collectSidecars, findSidecarForMedia, historyEntryFromSidecar } from './infoSidecar'
+import { removeArchiveEntry } from './archiveMutate'
+import { deleteMediaAndSidecar, validateCompletedMedia } from './validateMedia'
+import { appendSession } from './sessionLog'
 import {
   classifyYouTubeUrl,
   detectSource,
@@ -17,7 +20,7 @@ import {
 } from '../shared/sources'
 import type { DownloadSource, YouTubeKind } from '../shared/sources'
 import { IPC } from '../shared/ipc'
-import type { DownloadMode, DownloadRequest, QueueItem, ScdlEvent, AppSettings } from '../shared/types'
+import type { DownloadMode, DownloadRequest, QueueItem, ScdlEvent, AppSettings, SessionOutcome, SessionSnapshot } from '../shared/types'
 
 let activeProcess: ChildProcessWithoutNullStreams | null = null
 let activeWindow: BrowserWindow | null = null
@@ -38,6 +41,9 @@ interface DownloadSession {
   args: string[]
   /** Folder downloads land in; scanned for leftover .part files when done. */
   outputPath: string
+  request: DownloadRequest
+  source: DownloadSource
+  startedAt: number
   chunkSize: number
   cooldownSeconds: number
   maxThrottleRetries: number
@@ -232,6 +238,69 @@ function cleanupPartials(dir: string): number {
     // Folder unreadable; nothing to clean.
   }
   return removed
+}
+
+/** Remove truncated audio files and their archive entries after a session. */
+function sweepCorruptMedia(outputPath: string): number {
+  if (!outputPath?.trim()) return 0
+  const settings = loadSettings()
+  let removed = 0
+
+  for (const filePath of collectAudioFiles(outputPath)) {
+    const sidecarPath = findSidecarForMedia(filePath)
+    const validation = validateCompletedMedia(filePath, sidecarPath)
+    if (validation.ok) continue
+
+    let archiveId: string | null = null
+    if (sidecarPath) {
+      const entry = historyEntryFromSidecar(sidecarPath, filePath)
+      if (entry?.trackId && /^\d+$/.test(entry.trackId)) {
+        archiveId = entry.trackId
+      }
+    }
+
+    deleteMediaAndSidecar(filePath)
+    if (archiveId) {
+      removeArchiveEntry(settings.archivePath, archiveId)
+    }
+    removed += 1
+  }
+
+  return removed
+}
+
+function sessionCounts(items: QueueItem[]): SessionSnapshot['counts'] {
+  return {
+    completed: items.filter((item) => item.status === 'completed').length,
+    skipped: items.filter((item) => item.status === 'skipped').length,
+    error: items.filter((item) => item.status === 'error').length,
+    downloading: items.filter((item) => item.status === 'downloading').length
+  }
+}
+
+function persistSessionSnapshot(s: DownloadSession, success: boolean, message: string): void {
+  const cancelled = s.cancelled
+  let outcome: SessionOutcome = 'failed'
+  if (cancelled) outcome = 'cancelled'
+  else if (success) outcome = 'completed'
+
+  let statusVariant: SessionSnapshot['statusVariant'] = 'error'
+  if (cancelled) statusVariant = 'info'
+  else if (success) statusVariant = 'success'
+
+  const queueItems = Array.from(queue.values())
+
+  appendSession({
+    startedAt: s.startedAt,
+    endedAt: Date.now(),
+    request: s.request,
+    source: s.source,
+    outcome,
+    statusMessage: message,
+    statusVariant,
+    queue: queueItems.map((item) => ({ ...item })),
+    counts: sessionCounts(queueItems)
+  })
 }
 
 function buildArgs(request: DownloadRequest): string[] {
@@ -684,6 +753,30 @@ function handleLine(line: string): void {
     const finalTrackId = sidecar?.trackId || trackSlug
     const finalSize = sidecar?.sizeBytes || sizeBytes
 
+    const validation = validateCompletedMedia(filePath, sidecarPath)
+    if (!validation.ok) {
+      deleteMediaAndSidecar(filePath)
+      if (finalTrackId && /^\d+$/.test(finalTrackId)) {
+        removeArchiveEntry(settings.archivePath, finalTrackId)
+      }
+      upsertTrackItem({
+        id,
+        title: finalTitle,
+        artist: finalArtist,
+        status: 'error',
+        progress: existing?.progress ?? 0,
+        indeterminate: false,
+        message: validation.reason ?? 'Download incomplete or corrupt'
+      })
+      emit({
+        type: 'track-error',
+        id,
+        title: finalTitle,
+        message: validation.reason ?? 'Download incomplete or corrupt'
+      })
+      return
+    }
+
     upsertTrackItem({
       id,
       title: finalTitle,
@@ -923,6 +1016,14 @@ function postSessionFolderCleanup(outputPath: string): void {
     emit({ type: 'status', message: `Removed ${removed} leftover partial file(s).` })
   }
 
+  const corruptRemoved = sweepCorruptMedia(outputPath)
+  if (corruptRemoved > 0) {
+    emit({
+      type: 'status',
+      message: `Removed ${corruptRemoved} incomplete or corrupt track file(s).`
+    })
+  }
+
   try {
     const { merged, added } = reconcileHistoryEntries(loadHistory(), outputPath)
     if (added.length > 0) {
@@ -950,13 +1051,15 @@ function finalize(success: boolean, message: string): void {
   if (session.cooldownTimer) {
     clearTimeout(session.cooldownTimer)
   }
-  const outputPath = session.outputPath
+  const s = session
+  persistSessionSnapshot(s, success, message)
+  const outputPath = s.outputPath
   session = null
   activeProcess = null
   currentTrackId = null
 
   postSessionFolderCleanup(outputPath)
-  emit({ type: 'done', success, message })
+  emit({ type: 'done', success: success && !s.cancelled, message })
 }
 
 export function startDownload(window: BrowserWindow, request: DownloadRequest): { ok: boolean; error?: string } {
@@ -1001,6 +1104,9 @@ export function startDownload(window: BrowserWindow, request: DownloadRequest): 
     command,
     args,
     outputPath,
+    request,
+    source,
+    startedAt: Date.now(),
     chunkSize,
     cooldownSeconds: Math.max(5, Math.floor(settings.chunkCooldownSeconds)),
     maxThrottleRetries: Math.max(0, Math.floor(settings.maxThrottleRetries)),
@@ -1027,7 +1133,6 @@ export function startDownload(window: BrowserWindow, request: DownloadRequest): 
 export function cancelDownload(): void {
   if (!session && !activeProcess) return
 
-  const outputPath = session?.outputPath ?? null
   if (session) {
     session.cancelled = true
     if (session.cooldownTimer) {
@@ -1035,20 +1140,15 @@ export function cancelDownload(): void {
       session.cooldownTimer = null
     }
   }
-  session = null
-  currentTrackId = null
   emit({ type: 'status', message: 'Cancelling download…' })
 
   const finishCancel = (): void => {
-    if (outputPath) postSessionFolderCleanup(outputPath)
-    emit({ type: 'status', message: 'Download cancelled.' })
-    emit({ type: 'done', success: false, message: 'Download cancelled.' })
+    finalize(false, 'Download cancelled.')
   }
 
   const proc = activeProcess
   activeProcess = null
   if (proc) {
-    // Clean up only after the process exits and releases its .part file handle.
     proc.once('close', finishCancel)
     try {
       proc.kill()

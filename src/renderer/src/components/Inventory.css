@@ -61,14 +61,23 @@
   background: #fffdf5;
 }
 
-.inventory__body {
-  min-width: 0;
+.inventory__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
-.inventory__play {
-  flex-shrink: 0;
+.inventory__play,
+.inventory__add-mix,
+.inventory__in-mix {
   padding: 8px 12px;
   font-size: 10px;
+  white-space: nowrap;
+}
+
+.inventory__body {
+  min-width: 0;
 }
 
 .inventory__icon {

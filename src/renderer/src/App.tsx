@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AppSettings, DownloadMode, HistoryEntry, QueueItem, ScdlEvent } from '../../shared/types'
+import type { AppSettings, DownloadMode, HistoryEntry, MixState, QueueItem, ScdlEvent, SessionSnapshot } from '../../shared/types'
 import { DialogueBox } from './components/DialogueBox'
 import { EbButton } from './components/EbButton'
 import { ImpersonationTipModal } from './components/ImpersonationTipModal'
+import { MixBuilder } from './components/MixBuilder'
 import { ModeConfirmModal } from './components/ModeConfirmModal'
 import { Inventory } from './components/Inventory'
 import { PartyRoster } from './components/PartyRoster'
 import { PsychicSignalInput } from './components/PsychicSignalInput'
 import { PsiMenu } from './components/PsiMenu'
 import { SessionCompleteModal } from './components/SessionCompleteModal'
+import { SessionLogPanel } from './components/SessionLogPanel'
 import { TitlePanel } from './components/TitlePanel'
 import { initSound, playLoopingSessionComplete, playSound, stopLoopingSound, unlockAudio } from './utils/sound'
 import { useCtrlCShortcut } from './utils/useCtrlCShortcut'
@@ -72,6 +74,9 @@ export default function App(): JSX.Element {
   const [impersonationTipOpen, setImpersonationTipOpen] = useState(false)
   const [modeConfirmOpen, setModeConfirmOpen] = useState(false)
   const [pendingMode, setPendingMode] = useState<DownloadMode | null>(null)
+  const [sessions, setSessions] = useState<SessionSnapshot[]>([])
+  const [mixTrackIds, setMixTrackIds] = useState<Set<string>>(new Set())
+  const [mixRevision, setMixRevision] = useState(0)
   const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const clearCooldownTimer = useCallback(() => {
@@ -86,6 +91,24 @@ export default function App(): JSX.Element {
     setHistory(items)
   }, [])
 
+  const refreshSessions = useCallback(async () => {
+    const loaded = await window.scdl.getSessions()
+    setSessions(loaded)
+  }, [])
+
+  const refreshMixTrackIds = useCallback(async () => {
+    const mix: MixState | null = await window.scdl.getMix()
+    setMixTrackIds(new Set(mix?.tracks.map((track) => track.trackId) ?? []))
+    setMixRevision((n) => n + 1)
+  }, [])
+
+  const setMixStatus = useCallback((message: string, variant: 'info' | 'success' | 'error') => {
+    setStatusMessage(message)
+    setStatusVariant(variant)
+    if (variant === 'success') playSound('success')
+    if (variant === 'error') playSound('error')
+  }, [])
+
   const closeSessionComplete = (): void => {
     stopLoopingSound()
     setSessionCompleteOpen(false)
@@ -97,8 +120,10 @@ export default function App(): JSX.Element {
       setSettings(loaded)
       setDraftSettings(loaded)
       await refreshHistory()
+      await refreshSessions()
+      await refreshMixTrackIds()
     })()
-  }, [refreshHistory])
+  }, [refreshHistory, refreshSessions, refreshMixTrackIds])
 
   useEffect(() => {
     initSound({ enabled: settings.soundEnabled })
@@ -188,6 +213,7 @@ export default function App(): JSX.Element {
             playSound('error')
           }
           void refreshHistory()
+          void refreshSessions()
           break
         default:
           break
@@ -198,7 +224,7 @@ export default function App(): JSX.Element {
       unsubscribe()
       clearCooldownTimer()
     }
-  }, [refreshHistory, settings.impersonationTipShown, clearCooldownTimer])
+  }, [refreshHistory, refreshSessions, settings.impersonationTipShown, clearCooldownTimer])
 
   const handleDownload = async (): Promise<void> => {
     if (!url.trim()) return
@@ -222,9 +248,6 @@ export default function App(): JSX.Element {
   const handleCancel = useCallback(async (): Promise<void> => {
     clearCooldownTimer()
     await window.scdl.cancelDownload()
-    setIsBusy(false)
-    setStatusMessage('Download cancelled.')
-    setStatusVariant('info')
   }, [clearCooldownTimer])
 
   useCtrlCShortcut(isBusy, () => {
@@ -318,14 +341,16 @@ export default function App(): JSX.Element {
           onDownload={() => void handleDownload()}
         />
         <DialogueBox message={statusMessage} variant={statusVariant} />
+        <SessionLogPanel sessions={sessions} />
       </div>
 
       <div className="app-shell__queue">
         <PartyRoster items={queue} isBusy={isBusy} onCancel={() => void handleCancel()} />
+        <MixBuilder key={mixRevision} onStatus={setMixStatus} />
       </div>
 
       <div className="app-shell__inventory">
-        <Inventory items={history} />
+        <Inventory items={history} mixTrackIds={mixTrackIds} onMixUpdated={() => void refreshMixTrackIds()} />
       </div>
 
       <footer className="app-footer">
@@ -346,7 +371,7 @@ export default function App(): JSX.Element {
         onDownloadArchiveFile={() => void handleDownloadArchiveFile()}
       />
 
-      <SessionCompleteModal open={sessionCompleteOpen} onClose={closeSessionComplete} />
+      <SessionCompleteModal open={sessionCompleteOpen} onClose={closeSessionComplete} sessions={sessions} />
 
       <ModeConfirmModal
         open={modeConfirmOpen}

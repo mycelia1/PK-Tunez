@@ -54,6 +54,48 @@ export interface DownloadRequest {
   mode: DownloadMode
 }
 
+export type SessionOutcome = 'completed' | 'cancelled' | 'failed'
+
+export interface SessionSnapshot {
+  id: string
+  startedAt: number
+  endedAt: number
+  request: DownloadRequest
+  source: 'soundcloud' | 'youtube'
+  outcome: SessionOutcome
+  statusMessage: string
+  statusVariant: 'info' | 'success' | 'error'
+  queue: QueueItem[]
+  counts: {
+    completed: number
+    skipped: number
+    error: number
+    downloading: number
+  }
+}
+
+export interface MixTrackRef {
+  trackId: string
+  title: string
+  artist: string
+  filePath: string
+}
+
+export interface MixState {
+  name: string
+  folderSlug: string
+  tracks: MixTrackRef[]
+}
+
+export interface MixExportResult {
+  ok: boolean
+  copied: number
+  skipped: number
+  exportDir: string
+  skippedTitles: string[]
+  error?: string
+}
+
 export type ScdlEvent =
   | { type: 'status'; message: string }
   | { type: 'queue'; items: QueueItem[] }
@@ -94,6 +136,12 @@ export interface ScdlApi {
   fileExists: (filePath: string, trackId?: string) => Promise<boolean>
   openInDefaultPlayer: (filePath: string) => Promise<{ ok: boolean; error?: string }>
   openFolder: (folderPath: string) => Promise<{ ok: boolean; error?: string }>
+  getSessions: () => Promise<SessionSnapshot[]>
+  getMix: () => Promise<MixState | null>
+  saveMix: (mix: MixState) => Promise<MixState>
+  clearMix: () => Promise<void>
+  openMixPlaylist: () => Promise<{ ok: boolean; error?: string }>
+  exportMix: () => Promise<MixExportResult>
   onEvent: (callback: (event: ScdlEvent) => void) => () => void
 }
 

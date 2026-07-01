@@ -1,0 +1,85 @@
+.session-log {
+  margin-top: 12px;
+}
+
+.session-log__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.session-log__label {
+  font-size: 16px;
+  color: var(--eb-dialog-bg);
+  text-shadow: 1px 1px 0 var(--eb-outline);
+  white-space: nowrap;
+}
+
+.session-log__select {
+  flex: 1 1 200px;
+  min-width: 0;
+  font-size: 14px;
+}
+
+.session-log__expand {
+  flex-shrink: 0;
+}
+
+.session-log__snapshot {
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.session-log__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.session-log__badge {
+  align-self: flex-start;
+  padding: 2px 8px;
+  font-size: 14px;
+  border: 2px solid var(--eb-outline);
+}
+
+.session-log__badge--completed {
+  background: #b8f0a0;
+}
+
+.session-log__badge--cancelled {
+  background: #f0e0a0;
+}
+
+.session-log__badge--failed {
+  background: #f0a0a0;
+}
+
+.session-log__meta-line {
+  font-size: 16px;
+}
+
+.session-log__meta-line--muted {
+  opacity: 0.85;
+  font-size: 14px;
+}
+
+.session-log__status {
+  margin: 0;
+  font-size: 16px;
+}
+
+.session-log__status--success {
+  color: #2d6a2d;
+}
+
+.session-log__status--error {
+  color: #8b2020;
+}
+
+.session-log--compact .session-log__snapshot {
+  max-height: 360px;
+  overflow: auto;
+}

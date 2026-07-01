@@ -1,0 +1,90 @@
+.mix-builder {
+  margin-top: 0;
+}
+
+.mix-builder__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mix-builder__title {
+  margin: 0;
+}
+
+.mix-builder__name-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.mix-builder__label {
+  font-size: 14px;
+}
+
+.mix-builder__name {
+  width: 100%;
+}
+
+.mix-builder__empty {
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+
+.mix-builder__list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mix-builder__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 2px solid var(--eb-outline);
+  background: rgba(255, 255, 255, 0.4);
+  cursor: grab;
+}
+
+.mix-builder__item:active {
+  cursor: grabbing;
+}
+
+.mix-builder__drag {
+  opacity: 0.6;
+  user-select: none;
+}
+
+.mix-builder__track {
+  flex: 1;
+  min-width: 0;
+}
+
+.mix-builder__track-title {
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mix-builder__track-artist {
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.mix-builder__remove {
+  flex-shrink: 0;
+}
+
+.mix-builder__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

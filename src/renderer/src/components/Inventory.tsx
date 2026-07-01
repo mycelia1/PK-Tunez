@@ -5,6 +5,8 @@ import './Inventory.css'
 
 interface InventoryProps {
   items: HistoryEntry[]
+  mixTrackIds: Set<string>
+  onMixUpdated: () => void
 }
 
 const PAGE_SIZE = 100
@@ -29,7 +31,7 @@ function itemKey(item: HistoryEntry): string {
   return `${item.trackId}-${item.ts}`
 }
 
-export function Inventory({ items }: InventoryProps): JSX.Element {
+export function Inventory({ items, mixTrackIds, onMixUpdated }: InventoryProps): JSX.Element {
   const [resolvedPaths, setResolvedPaths] = useState<Record<string, { exists: boolean; path: string }>>({})
   const resolvedKeys = useRef<Set<string>>(new Set())
   const [query, setQuery] = useState('')
@@ -97,6 +99,25 @@ export function Inventory({ items }: InventoryProps): JSX.Element {
     }
   }
 
+  const handleAddToMix = async (item: HistoryEntry, resolvedPath: string): Promise<void> => {
+    const mix = (await window.scdl.getMix()) ?? { name: 'My Mix', folderSlug: 'My Mix', tracks: [] }
+    if (mix.tracks.some((t) => t.trackId === item.trackId)) return
+
+    await window.scdl.saveMix({
+      ...mix,
+      tracks: [
+        ...mix.tracks,
+        {
+          trackId: item.trackId,
+          title: item.title,
+          artist: item.artist,
+          filePath: resolvedPath
+        }
+      ]
+    })
+    onMixUpdated()
+  }
+
   const isSearching = query.trim().length > 0
   const hasMore = filtered.length > displayed.length
 
@@ -146,15 +167,31 @@ export function Inventory({ items }: InventoryProps): JSX.Element {
                       {item.artist} • {formatSize(item.sizeBytes)} • {formatDate(item.ts)}
                     </div>
                   </div>
-                  {canPlay && (
-                    <EbButton
-                      type="button"
-                      className="eb-button eb-button--secondary inventory__play"
-                      onClick={() => void handlePlay(key, resolved.path)}
-                    >
-                      Play
-                    </EbButton>
-                  )}
+                  <div className="inventory__actions">
+                    {canPlay && (
+                      <EbButton
+                        type="button"
+                        className="eb-button eb-button--secondary inventory__play"
+                        onClick={() => void handlePlay(key, resolved.path)}
+                      >
+                        Play
+                      </EbButton>
+                    )}
+                    {canPlay &&
+                      (mixTrackIds.has(item.trackId) ? (
+                        <EbButton type="button" className="eb-button inventory__in-mix" disabled>
+                          In mix
+                        </EbButton>
+                      ) : (
+                        <EbButton
+                          type="button"
+                          className="eb-button eb-button--secondary inventory__add-mix"
+                          onClick={() => void handleAddToMix(item, resolved.path)}
+                        >
+                          Add to mix
+                        </EbButton>
+                      ))}
+                  </div>
                 </li>
               )
             })}
