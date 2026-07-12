@@ -32,6 +32,14 @@ export function hasBundledScdl(): boolean {
   return existsSync(join(getBinDir(), SCDL_BINARY))
 }
 
+const DENO_BINARY = isWindows ? 'deno.exe' : 'deno'
+
+/** Absolute path to bundled Deno for yt-dlp YouTube JS challenges, or null if missing. */
+export function getBundledDenoPath(): string | null {
+  const bundled = join(getBinDir(), DENO_BINARY)
+  return existsSync(bundled) ? bundled : null
+}
+
 /**
  * How to invoke yt-dlp for non-SoundCloud (YouTube) downloads.
  *
@@ -45,6 +53,20 @@ export function getYtDlpInvocation(): { command: string; prelude: string[] } {
     return { command: getScdlPath(), prelude: ['pk-ytdlp'] }
   }
   return { command: isWindows ? 'yt-dlp.exe' : 'yt-dlp', prelude: [] }
+}
+
+/**
+ * How to invoke spotDL for Spotify downloads.
+ *
+ * spotDL is embedded inside the bundled scdl binary and exposed via its
+ * `pk-spotdl` launcher entry point. In development without a bundled binary,
+ * fall back to a system `spotdl` on PATH.
+ */
+export function getSpotdlInvocation(): { command: string; prelude: string[] } {
+  if (hasBundledScdl()) {
+    return { command: getScdlPath(), prelude: ['pk-spotdl'] }
+  }
+  return { command: isWindows ? 'spotdl.exe' : 'spotdl', prelude: [] }
 }
 
 /**

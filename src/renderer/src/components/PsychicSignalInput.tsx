@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react'
 import type { DownloadMode } from '../../../shared/types'
-import { classifyYouTubeUrl, detectSource } from '../../../shared/sources'
+import { classifySpotifyUrl, classifyYouTubeUrl, detectSource } from '../../../shared/sources'
 import { DOWNLOAD_MODE_OPTIONS } from '../constants/downloadModes'
 import { EbButton } from './EbButton'
 import './PsychicSignalInput.css'
@@ -20,6 +20,13 @@ const YT_KIND_LABEL: Record<string, string> = {
   channel: 'Channel'
 }
 
+const SPOTIFY_KIND_LABEL: Record<string, string> = {
+  track: 'Track',
+  playlist: 'Playlist',
+  album: 'Album',
+  artist: 'Artist'
+}
+
 export function PsychicSignalInput({
   url,
   mode,
@@ -36,8 +43,11 @@ export function PsychicSignalInput({
   }
 
   const hasUrl = url.trim().length > 0
-  const isYouTube = hasUrl && detectSource(url) === 'youtube'
+  const source = hasUrl ? detectSource(url) : null
+  const isYouTube = source === 'youtube'
+  const isSpotify = source === 'spotify'
   const youtubeKind = isYouTube ? classifyYouTubeUrl(url) : null
+  const spotifyKind = isSpotify ? classifySpotifyUrl(url) : null
 
   return (
     <form className="psychic-signal eb-panel" aria-label="Download input" onSubmit={handleSubmit}>
@@ -48,22 +58,22 @@ export function PsychicSignalInput({
         id="psychic-signal-url"
         className="eb-input psychic-signal__input"
         type="url"
-        placeholder="SoundCloud or YouTube link (e.g. https://soundcloud.com/... or https://youtu.be/...)"
+        placeholder="SoundCloud, YouTube, or Spotify link"
         value={url}
         onChange={(event) => onUrlChange(event.target.value)}
         disabled={isBusy}
       />
 
-      {hasUrl && (
+      {hasUrl && source && (
         <div
-          className={`psychic-signal__source-badge psychic-signal__source-badge--${
-            isYouTube ? 'youtube' : 'soundcloud'
-          }`}
+          className={`psychic-signal__source-badge psychic-signal__source-badge--${source}`}
           aria-live="polite"
         >
           {isYouTube
             ? `YouTube · audio-only · ${YT_KIND_LABEL[youtubeKind ?? 'video']}`
-            : 'SoundCloud'}
+            : isSpotify
+              ? `Spotify · matched via YouTube · ${SPOTIFY_KIND_LABEL[spotifyKind ?? 'track']}`
+              : 'SoundCloud'}
         </div>
       )}
 
@@ -73,6 +83,14 @@ export function PsychicSignalInput({
           {youtubeKind === 'video'
             ? ' Just this video will be grabbed.'
             : ` Every item in this ${youtubeKind} will be grabbed.`}
+        </p>
+      ) : isSpotify ? (
+        <p className="psychic-signal__yt-note">
+          Spotify metadata is matched to YouTube (and similar sources) and downloaded as M4A. Matching is
+          best-effort — the wrong version or remix can occasionally be picked.
+          {spotifyKind === 'track'
+            ? ' Just this track will be grabbed.'
+            : ` Every item in this ${spotifyKind} will be grabbed.`}
         </p>
       ) : (
         <div className="psychic-signal__modes" role="radiogroup" aria-label="Download mode">

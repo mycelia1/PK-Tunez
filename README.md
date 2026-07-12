@@ -1,6 +1,6 @@
 # PK-Tunez
 
-EarthBound-inspired desktop companion for the [SCDL](https://github.com/scdl-org/scdl) SoundCloud downloader.
+EarthBound-inspired desktop companion for downloading music from SoundCloud, YouTube, and Spotify.
 
 ## Features
 
@@ -10,14 +10,15 @@ EarthBound-inspired desktop companion for the [SCDL](https://github.com/scdl-org
 - Throttle protection: chunked batches with cooldowns, jittered per-track delays, and automatic 403/429 backoff + resume
 - Optional browser impersonation (bundled `curl_cffi`) and download rate limiting
 - Global text archive dedup via `--download-archive` (survives moving files to a thumb drive)
-- Persistent download history inventory with **Play** (opens default media player when file exists)
-- Party Roster status sprites (Ness walking, peace sign, evil mushroom)
+- Persistent download history **Backpack** with **Play** (opens default media player when file exists)
+- Psychic Stream status sprites (Ness walking, peace sign, evil mushroom)
 - Session-complete popup with looping jingle
-- PSI Menu for SoundCloud credentials, filters, and troubleshooting tips
+- PSI Menu for SoundCloud / YouTube / Spotify settings, filters, and troubleshooting tips
+- **Spotify** links: metadata matched to YouTube (via bundled [spotDL](https://github.com/spotDL/spotify-downloader)) and downloaded as M4A
 
 ## Requirements
 
-**For end users (packaged installer):** nothing extra — `scdl`, `yt-dlp`, and `ffmpeg` are bundled inside the app.
+**For end users (packaged installer):** nothing extra — `scdl`, `yt-dlp`, `spotdl`, `ffmpeg`, and `deno` are bundled inside the app.
 
 **For development:**
 
@@ -93,7 +94,7 @@ Builds are unsigned, which is fine for personal sharing:
 
 **macOS:** open the `.dmg` (arm64 for Apple Silicon, x64 for Intel Macs), drag PK-Tunez to Applications, then right-click -> *Open* on first launch.
 
-Then open the **PSI Menu**, set a download folder, paste a SoundCloud URL, and press **PK DOWNLOAD!**.
+Then open the **PSI Menu**, set a download folder, paste a SoundCloud, YouTube, or Spotify URL, and press **PK DOWNLOAD!**.
 
 ## Data locations
 
@@ -102,14 +103,22 @@ App settings, history, and the global archive are stored per-user:
 - **Windows:** `%APPDATA%\pk-tunez\`
 - **macOS:** `~/Library/Application Support/pk-tunez/`
 
-Files: `settings.json`, `history.json`, `download-archive.txt`. On first launch, PK-Tunez automatically migrates these from the older `scdl-earthbound-ui` folder if present.
+Files: `settings.json`, `history.json`, `download-archive.txt`, `spotdl-archive.txt` (Spotify dedup). On first launch, PK-Tunez automatically migrates these from the older `scdl-earthbound-ui` folder if present.
 
 ## Usage
 
 1. Open **PSI Menu** and set download folder (and credentials if needed).
-2. Paste a SoundCloud profile or track URL into **Enter Psychic Signal**.
-3. Choose a download mode (All Uploads is best for artist/label batches).
-4. Press **PK DOWNLOAD!**
+2. Paste a SoundCloud, YouTube, or Spotify URL into **Enter Psychic Signal**.
+3. For SoundCloud, choose a download mode (All Uploads is best for artist/label batches). YouTube and Spotify modes are auto-detected from the URL.
+4. Press **PK DOWNLOAD!** and watch the Psychic Stream.
+
+## Spotify
+
+Paste an `open.spotify.com` track, playlist, album, or artist link (or a `spotify:` URI). PK-Tunez does **not** download from Spotify itself (DRM); it uses [spotDL](https://github.com/spotDL/spotify-downloader) to read Spotify metadata, match each track on YouTube (or similar), and download the audio as M4A.
+
+- Matching is best-effort — wrong versions / remixes can occasionally be picked.
+- Optional Spotify developer **Client ID** / **Client Secret** in **PSI Menu → Spotify settings** unlock private playlists and liked songs. Leave blank for the keyless matcher (public content).
+- Age-restricted YouTube matches use the same **YouTube settings → Use cookies from browser** option as direct YouTube downloads.
 
 Tracks already recorded in the global archive are skipped automatically, even if the audio file was moved elsewhere.
 
@@ -221,16 +230,16 @@ Bundled sidecar binaries (scdl, ffmpeg, yt-dlp) are built into `resources/bin/` 
 
 ## Session Log
 
-Each PK DOWNLOAD saves a frozen end-state snapshot (Party Roster, status line, URL, outcome) to `%APPDATA%/pk-tunez/sessions.json` (last 50 sessions). Use the **Session Log** dropdown below the dialogue box to review completed, cancelled, or failed runs.
+Each PK DOWNLOAD saves a frozen end-state snapshot (Psychic Stream, status line, URL, outcome) to `%APPDATA%/pk-tunez/sessions.json` (last 50 sessions). Use the **Session Log** dropdown below the dialogue box to review completed, cancelled, or failed runs.
 
 ## Mix Lab
 
-Build a DJ prep playlist from Inventory:
+Build a DJ prep playlist from Backpack:
 
 1. Click **Add to mix** on tracks you want (file must exist on disk).
 2. Name your mix and drag to reorder in **Mix Lab**.
 3. **Launch playlist** opens a temporary `.m3u` in your default player.
-4. **Export mix** copies audio files to `{downloadDir}/mixes/{mix-name}/` (originals stay in Inventory).
+4. **Export mix** copies audio files to `{downloadDir}/mixes/{mix-name}/` with numbered prefixes (`01 - …`, `02 - …`) in mix order (originals stay in Backpack).
 
 ## Troubleshooting
 

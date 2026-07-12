@@ -40,13 +40,13 @@ echo "[1/5] Creating Python venv..."
 python3 -m venv "${VENV_DIR}"
 PY="${VENV_DIR}/bin/python"
 
-# 2. Install scdl (pulls yt-dlp), curl_cffi (browser impersonation), and PyInstaller.
+# 2. Install scdl (pulls yt-dlp), spotdl (Spotify matcher), curl_cffi, PyInstaller.
 echo ""
-echo "[2/5] Installing scdl + curl_cffi + pyinstaller..."
+echo "[2/5] Installing scdl + spotdl + curl_cffi + pyinstaller..."
 "${PY}" -m pip install --upgrade pip
-"${PY}" -m pip install scdl curl_cffi pyinstaller
+"${PY}" -m pip install scdl curl_cffi spotdl pyinstaller
 
-# 3. Build standalone scdl with yt-dlp collected in.
+# 3. Build standalone scdl with yt-dlp + spotdl collected in.
 echo ""
 echo "[3/5] Building scdl with PyInstaller..."
 "${PY}" -m PyInstaller \
@@ -57,12 +57,19 @@ echo "[3/5] Building scdl with PyInstaller..."
   --specpath "${WORK_DIR}" \
   --collect-submodules yt_dlp \
   --collect-submodules scdl \
+  --collect-submodules spotdl \
   --collect-data scdl \
   --collect-all mutagen \
   --collect-all curl_cffi \
+  --collect-all spotdl \
+  --collect-all spotipy \
+  --collect-all ytmusicapi \
+  --collect-all rapidfuzz \
+  --collect-all pykakasi \
   --copy-metadata yt_dlp \
   --copy-metadata scdl \
   --copy-metadata curl_cffi \
+  --copy-metadata spotdl \
   --runtime-hook "${SCRIPT_DIR}/pyi_rth_ytdlp_init.py" \
   --hidden-import yt_dlp.cookies \
   "${LAUNCHER}"
@@ -106,6 +113,14 @@ if ! "${OUT_DIR}/scdl" pk-ytdlp --version >/dev/null 2>&1; then
   exit 1
 fi
 echo "scdl pk-ytdlp OK (embedded yt-dlp reachable)"
+
+# Verify the embedded spotDL is reachable via the pk-spotdl entry point (used for
+# Spotify -> YouTube matched downloads).
+if ! "${OUT_DIR}/scdl" pk-spotdl --version >/dev/null 2>&1; then
+  echo "scdl pk-spotdl --version failed" >&2
+  exit 1
+fi
+echo "scdl pk-spotdl OK (embedded spotDL reachable)"
 
 echo ""
 echo "Done. Binaries written to ${OUT_DIR}"

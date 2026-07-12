@@ -2,9 +2,10 @@
 
 Also provides an offline self-test (``--pk-selftest``) used by the bundling
 scripts to verify the frozen binary at build time without any network access:
-it exercises the full scdl + yt_dlp import chain (including the runtime hook
-that fixes ``yt_dlp.__init__``) and confirms the bundled ``scdl.cfg`` data
-file was packaged. This catches packaging regressions that ``--help`` misses.
+it exercises the full scdl + yt_dlp (+ spotdl) import chain (including the
+runtime hook that fixes ``yt_dlp.__init__``) and confirms the bundled
+``scdl.cfg`` data file was packaged. This catches packaging regressions that
+``--help`` misses.
 """
 import sys
 
@@ -17,6 +18,8 @@ def _pk_selftest() -> int:
         import scdl.scdl  # noqa: F401  triggers scdl.patches import chain
         import yt_dlp  # noqa: F401
         import curl_cffi  # noqa: F401  required for yt-dlp browser impersonation
+        import spotdl  # noqa: F401  Spotify -> YouTube matcher
+        from spotdl import console_entry_point  # noqa: F401
     except Exception as exc:  # pragma: no cover - exercised at build time
         print(f"SELFTEST FAIL: import error: {exc!r}", file=sys.stderr)
         return 1
@@ -41,6 +44,15 @@ if __name__ == "__main__":
         from yt_dlp import main as ytdlp_main
 
         sys.exit(ytdlp_main(sys.argv[2:]))
+
+    # Dispatch to the embedded spotDL CLI for Spotify URLs. spotDL matches
+    # Spotify metadata to YouTube (or other providers) and downloads via yt-dlp.
+    # Exposed as `scdl pk-spotdl <spotdl args...>`.
+    if len(sys.argv) > 1 and sys.argv[1] == "pk-spotdl":
+        from spotdl import console_entry_point
+
+        sys.argv = ["spotdl"] + sys.argv[2:]
+        sys.exit(console_entry_point())
 
     from scdl.scdl import _main
 

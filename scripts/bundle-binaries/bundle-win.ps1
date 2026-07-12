@@ -33,12 +33,12 @@ Write-Host "`n[1/5] Creating Python venv..."
 python -m venv $venvDir
 $py = Join-Path $venvDir 'Scripts\python.exe'
 
-# 2. Install scdl (pulls yt-dlp), curl_cffi (browser impersonation), and PyInstaller.
-Write-Host "`n[2/5] Installing scdl + curl_cffi + pyinstaller..."
+# 2. Install scdl (pulls yt-dlp), spotdl (Spotify matcher), curl_cffi, PyInstaller.
+Write-Host "`n[2/5] Installing scdl + spotdl + curl_cffi + pyinstaller..."
 & $py -m pip install --upgrade pip
-& $py -m pip install scdl curl_cffi pyinstaller
+& $py -m pip install scdl curl_cffi spotdl pyinstaller
 
-# 3. Build standalone scdl.exe with yt-dlp collected in.
+# 3. Build standalone scdl.exe with yt-dlp + spotdl collected in.
 Write-Host "`n[3/5] Building scdl.exe with PyInstaller..."
 & $py -m PyInstaller `
     --onefile `
@@ -48,12 +48,19 @@ Write-Host "`n[3/5] Building scdl.exe with PyInstaller..."
     --specpath $workDir `
     --collect-submodules yt_dlp `
     --collect-submodules scdl `
+    --collect-submodules spotdl `
     --collect-data scdl `
     --collect-all mutagen `
     --collect-all curl_cffi `
+    --collect-all spotdl `
+    --collect-all spotipy `
+    --collect-all ytmusicapi `
+    --collect-all rapidfuzz `
+    --collect-all pykakasi `
     --copy-metadata yt_dlp `
     --copy-metadata scdl `
     --copy-metadata curl_cffi `
+    --copy-metadata spotdl `
     --runtime-hook (Join-Path $scriptDir 'pyi_rth_ytdlp_init.py') `
     --hidden-import yt_dlp.cookies `
     $launcher
@@ -109,6 +116,18 @@ if ($ytdlpExit -ne 0) {
   throw "scdl.exe pk-ytdlp --version failed (exit $ytdlpExit)"
 }
 Write-Host "scdl.exe pk-ytdlp OK (embedded yt-dlp reachable: $($ytdlpOut.Trim()))"
+
+# Verify the embedded spotDL is reachable via the pk-spotdl entry point (used for
+# Spotify -> YouTube matched downloads).
+$ErrorActionPreference = 'Continue'
+$spotdlOut = (& $scdlExe pk-spotdl --version 2>&1 | Out-String)
+$spotdlExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+if ($spotdlExit -ne 0) {
+  Write-Host $spotdlOut
+  throw "scdl.exe pk-spotdl --version failed (exit $spotdlExit)"
+}
+Write-Host "scdl.exe pk-spotdl OK (embedded spotDL reachable: $($spotdlOut.Trim()))"
 
 Write-Host "`nDone. Binaries written to $outDir"
 Write-Host "Cleaning up work dir..."

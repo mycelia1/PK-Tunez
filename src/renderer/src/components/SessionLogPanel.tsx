@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { SessionSnapshot } from '../../../shared/types'
-import { PartyRoster } from './PartyRoster'
+import { PsychicStream } from './PsychicStream'
 import './SessionLogPanel.css'
 
 interface SessionLogPanelProps {
@@ -84,14 +84,18 @@ export function SessionLogPanel({ sessions, compact = false }: SessionLogPanelPr
             </span>
             <span className="session-log__meta-line">{sessionSummary(selected)}</span>
             <span className="session-log__meta-line session-log__meta-line--muted">
-              {selected.source === 'youtube' ? 'YouTube' : 'SoundCloud'} · {selected.request.mode} ·{' '}
+              {selected.source === 'youtube'
+                ? 'YouTube'
+                : selected.source === 'spotify'
+                  ? 'Spotify'
+                  : 'SoundCloud'} · {selected.request.mode} ·{' '}
               {formatWhen(selected.startedAt)}
             </span>
             <p className={`session-log__status session-log__status--${selected.statusVariant}`}>
               {selected.statusMessage}
             </p>
           </div>
-          <PartyRoster items={selected.queue} isBusy={false} readOnly emptyMessage="No tracks in this session." />
+          <PsychicStream items={selected.queue} isBusy={false} readOnly emptyMessage="No tracks in this session." />
         </div>
       )}
     </section>

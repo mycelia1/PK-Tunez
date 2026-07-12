@@ -1,9 +1,9 @@
-.party-roster {
+.psychic-stream {
   padding: 18px;
   min-height: 360px;
 }
 
-.party-roster__header {
+.psychic-stream__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -11,18 +11,18 @@
   margin-bottom: 16px;
 }
 
-.party-roster__title {
+.psychic-stream__title {
   font-size: 16px;
   margin: 0;
 }
 
-.party-roster__empty {
+.psychic-stream__empty {
   margin: 24px 0 0;
   font-size: 24px;
   color: var(--eb-muted);
 }
 
-.party-roster__list {
+.psychic-stream__list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -30,7 +30,7 @@
   gap: 14px;
 }
 
-.party-roster__member {
+.psychic-stream__member {
   display: grid;
   grid-template-columns: 56px 1fr;
   gap: 12px;
@@ -40,19 +40,19 @@
   background: #f7fbff;
 }
 
-.party-roster__member--completed {
+.psychic-stream__member--completed {
   background: #ecffec;
 }
 
-.party-roster__member--skipped {
+.psychic-stream__member--skipped {
   background: #fff8dc;
 }
 
-.party-roster__member--error {
+.psychic-stream__member--error {
   background: #ffe8ef;
 }
 
-.party-roster__avatar {
+.psychic-stream__avatar {
   width: 56px;
   height: 56px;
   border: 3px solid var(--eb-outline);
@@ -64,20 +64,20 @@
   font-size: 18px;
 }
 
-.party-roster__row {
+.psychic-stream__row {
   display: flex;
   justify-content: space-between;
   gap: 8px;
   align-items: center;
 }
 
-.party-roster__artist,
-.party-roster__message {
+.psychic-stream__artist,
+.psychic-stream__message {
   font-size: 18px;
   color: var(--eb-muted);
 }
 
-.party-roster__status {
+.psychic-stream__status {
   font-family: var(--font-heading);
   font-size: 10px;
   background: var(--eb-sky);
@@ -87,22 +87,22 @@
   border-radius: 999px;
 }
 
-.party-roster__member--completed .party-roster__status {
+.psychic-stream__member--completed .psychic-stream__status {
   background: var(--eb-hp-green);
   color: var(--eb-outline);
 }
 
-.party-roster__member--skipped .party-roster__status {
+.psychic-stream__member--skipped .psychic-stream__status {
   background: var(--eb-yellow);
   color: var(--eb-outline);
 }
 
-.party-roster__member--error .party-roster__status {
+.psychic-stream__member--error .psychic-stream__status {
   background: var(--eb-pink);
   color: var(--eb-outline);
 }
 
-.party-roster__sprite-badge {
+.psychic-stream__sprite-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -114,14 +114,14 @@
   background: #fff;
 }
 
-.party-roster__sprite {
+.psychic-stream__sprite {
   width: 40px;
   height: 40px;
   object-fit: contain;
   image-rendering: pixelated;
 }
 
-.party-roster__sprite--animated {
+.psychic-stream__sprite--animated {
   width: 44px;
   height: 44px;
 }

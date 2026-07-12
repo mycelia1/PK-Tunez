@@ -28,9 +28,10 @@ export function loadMix(): MixState | null {
 }
 
 export function saveMix(mix: MixState): MixState {
+  const displayName = mix.name.trim() || 'My Mix'
   const normalized: MixState = {
-    name: mix.name.trim(),
-    folderSlug: mix.folderSlug?.trim() || sanitizeFolderName(mix.name),
+    name: displayName,
+    folderSlug: sanitizeFolderName(mix.folderSlug?.trim() || displayName),
     tracks: mix.tracks
   }
   writeFileSync(mixPath(), JSON.stringify(normalized, null, 2), 'utf8')

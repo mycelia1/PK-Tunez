@@ -64,6 +64,10 @@
   background: var(--eb-pink);
 }
 
+.psychic-signal__source-badge--spotify {
+  background: #b8f0c8;
+}
+
 .psychic-signal__yt-note {
   margin: 0;
   font-size: 16px;

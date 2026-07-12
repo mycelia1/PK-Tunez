@@ -3,8 +3,22 @@ import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { BrowserWindow } from 'electron'
 import { appendHistory, createHistoryEntry } from './archive'
-import { ensureArchiveFile, extractArtistSlug, loadHistory, loadSettings, saveHistory } from './settings'
-import { getScdlPath, getSpawnEnv, getYtDlpInvocation } from './binPaths'
+import {
+  ensureArchiveFile,
+  extractArtistSlug,
+  loadHistory,
+  loadSettings,
+  saveHistory,
+  spotifyArchivePath
+} from './settings'
+import {
+  getBinDir,
+  getScdlPath,
+  getSpawnEnv,
+  getYtDlpInvocation,
+  getSpotdlInvocation,
+  getBundledDenoPath
+} from './binPaths'
 import { decodeScdlOutput } from './scdlEncoding'
 import { resolveCompletedTrackPath } from './resolveAudioPath'
 import { parseTrackFileName, reconcileHistoryEntries, collectAudioFiles } from './reconcileHistory'
@@ -12,7 +26,9 @@ import { collectSidecars, findSidecarForMedia, historyEntryFromSidecar } from '.
 import { removeArchiveEntry } from './archiveMutate'
 import { deleteMediaAndSidecar, validateCompletedMedia } from './validateMedia'
 import { appendSession } from './sessionLog'
+import { appendSessionLogLine, createSessionLogFile } from './downloadLog'
 import {
+  classifySpotifyUrl,
   classifyYouTubeUrl,
   detectSource,
   sanitizeFolderName,
@@ -55,6 +71,14 @@ interface DownloadSession {
   killedForCooldown: boolean
   cancelled: boolean
   cooldownTimer: ReturnType<typeof setTimeout> | null
+  logFilePath: string | null
+}
+
+function emitStatus(message: string): void {
+  const trimmed = message.trim()
+  if (!trimmed) return
+  appendSessionLogLine(session?.logFilePath ?? null, trimmed)
+  emit({ type: 'status', message: trimmed })
 }
 
 let session: DownloadSession | null = null
@@ -336,7 +360,7 @@ function buildArgs(request: DownloadRequest): string[] {
 }
 
 /**
- * yt-dlp status lines that must not become fake Party Roster rows (they never
+ * yt-dlp status lines that must not become fake Psychic Stream rows (they never
  * get a matching destination/completion event).
  */
 function isYtDlpNoiseLine(line: string): boolean {
@@ -440,6 +464,109 @@ function buildYouTubeArgs(request: DownloadRequest): {
   if (settings.limitTrackLength) {
     const seconds = Math.max(1, settings.maxTrackLengthMinutes) * 60
     args.push('--match-filter', `duration < ${seconds}`)
+  }
+  if (settings.youtubeCookiesFromBrowser) {
+    args.push('--cookies-from-browser', settings.youtubeCookiesBrowser.trim() || 'firefox')
+  }
+  const denoPath = getBundledDenoPath()
+  if (denoPath) {
+    args.push('--js-runtimes', `deno:${denoPath}`)
+  }
+
+  return { args, outputPath }
+}
+
+/**
+ * Build the spotDL argument list for a Spotify URL (track / playlist / album /
+ * artist). spotDL matches Spotify metadata to YouTube (or other providers) and
+ * downloads via yt-dlp. History is built from stdout (spotDL does not write
+ * .info.json sidecars).
+ */
+function buildSpotifyArgs(request: DownloadRequest): {
+  args: string[]
+  outputPath: string
+} {
+  const settings = loadSettings()
+  const archive = spotifyArchivePath()
+  ensureArchiveFile(archive)
+
+  const kind = classifySpotifyUrl(request.url)
+  // Collections land in a {list-name} subfolder under the download dir; tracks
+  // land flat. session.outputPath is the download root so finalize can scan it.
+  const outputPath = settings.downloadDir
+  mkdirSync(outputPath, { recursive: true })
+
+  const outputTemplate =
+    kind === 'track'
+      ? join(outputPath, '{artist} - {title}.{output-ext}')
+      : join(outputPath, '{list-name}', '{artist} - {title}.{output-ext}')
+
+  const ffmpegPath = join(getBinDir(), process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg')
+
+  const ytDlpParts: string[] = []
+  const denoPath = getBundledDenoPath()
+  if (denoPath) {
+    // Forward slashes: spotDL runs shlex.split() on --yt-dlp-args, which treats
+    // Windows backslashes as escapes and would mangle the Deno path.
+    ytDlpParts.push('--js-runtimes', `deno:${denoPath.replace(/\\/g, '/')}`)
+  }
+  if (settings.youtubeCookiesFromBrowser) {
+    ytDlpParts.push(
+      '--cookies-from-browser',
+      settings.youtubeCookiesBrowser.trim() || 'firefox'
+    )
+  }
+  const minSleep = Math.max(0, settings.sleepIntervalSeconds)
+  const maxSleep = Math.max(minSleep, settings.maxSleepIntervalSeconds)
+  ytDlpParts.push(
+    '--sleep-interval',
+    String(minSleep),
+    '--max-sleep-interval',
+    String(maxSleep),
+    '--retries',
+    '10',
+    '--fragment-retries',
+    '10',
+    '--retry-sleep',
+    '5'
+  )
+  if (settings.sleepRequestsSeconds > 0) {
+    ytDlpParts.push('--sleep-requests', String(settings.sleepRequestsSeconds))
+  }
+
+  const args: string[] = [
+    'download',
+    request.url,
+    '--output',
+    outputTemplate,
+    '--format',
+    'm4a',
+    '--bitrate',
+    'disable',
+    '--archive',
+    archive,
+    '--simple-tui',
+    '--log-level',
+    'INFO'
+  ]
+
+  if (existsSync(ffmpegPath)) {
+    args.push('--ffmpeg', ffmpegPath)
+  }
+
+  if (ytDlpParts.length > 0) {
+    // spotDL expects a single string of yt-dlp args. Always quote values that
+    // contain spaces OR backslashes so shlex.split() does not eat escapes.
+    const ytDlpArgs = ytDlpParts
+      .map((part) => (/[\s\\]/.test(part) ? `"${part.replace(/\\/g, '/')}"` : part))
+      .join(' ')
+    args.push('--yt-dlp-args', ytDlpArgs)
+  }
+
+  const clientId = settings.spotifyClientId.trim()
+  const clientSecret = settings.spotifyClientSecret.trim()
+  if (clientId && clientSecret) {
+    args.push('--client-id', clientId, '--client-secret', clientSecret)
   }
 
   return { args, outputPath }
@@ -572,6 +699,17 @@ function parseFilterSkip(line: string): { title: string; reason: string } | null
   return { title, reason }
 }
 
+/** YouTube lines that mean a logged-in browser session is required. */
+function isYouTubeCookiesNeeded(line: string): boolean {
+  const lower = line.toLowerCase()
+  if (!lower.includes('[youtube]') && !lower.includes('youtube')) return false
+  return (
+    lower.includes('cookies-from-browser') ||
+    lower.includes('use --cookies') ||
+    lower.includes('sign in to confirm')
+  )
+}
+
 function handleLine(line: string): void {
   const trimmed = line.trim()
   if (!trimmed) return
@@ -586,11 +724,13 @@ function handleLine(line: string): void {
     (/\b429\b/.test(lower) && (lower.includes('error') || lower.includes('http')))
   if (is403 || is429) {
     if (session) session.sawThrottle = true
+    const throttleMessage = is403
+      ? 'SoundCloud refused a request (HTTP 403) — likely throttling this session. PK-Tunez will back off and retry automatically.'
+      : 'SoundCloud is throttling requests (HTTP 429). PK-Tunez will slow down and resume automatically.'
+    appendSessionLogLine(session?.logFilePath ?? null, throttleMessage)
     emit({
       type: 'rate-limit',
-      message: is403
-        ? 'SoundCloud refused a request (HTTP 403) — likely throttling this session. PK-Tunez will back off and retry automatically.'
-        : 'SoundCloud is throttling requests (HTTP 429). PK-Tunez will slow down and resume automatically.'
+      message: throttleMessage
     })
   }
 
@@ -598,7 +738,171 @@ function handleLine(line: string): void {
     emit({ type: 'impersonation-warning' })
   }
 
-  emit({ type: 'status', message: trimmed })
+  if (
+    (currentSource === 'youtube' || currentSource === 'spotify') &&
+    isYouTubeCookiesNeeded(trimmed)
+  ) {
+    emit({ type: 'youtube-cookies-hint' })
+  }
+
+  emitStatus(trimmed)
+
+  // --- spotDL stdout (Spotify source) ---
+  // spotDL does not write .info.json sidecars; history is built from the
+  // `Downloaded "..."` line plus a filesystem lookup. Guard every rule so
+  // SoundCloud/YouTube parsing is undisturbed.
+  if (currentSource === 'spotify') {
+    const downloaded = parseSpotifyDownloaded(trimmed)
+    if (downloaded) {
+      const id = currentTrackId && isSyntheticTrackId(currentTrackId) ? currentTrackId : makeTrackId()
+      const filePath = resolveSpotifyOutputFile(
+        session?.outputPath ?? loadSettings().downloadDir,
+        downloaded.artist,
+        downloaded.title
+      )
+      const sizeBytes = safeFileSize(filePath)
+      const trackId = spotifyTrackIdFromUrl(downloaded.url)
+      const finalUrl = downloaded.url.startsWith('http') ? downloaded.url : lastRequestUrl
+
+      upsertTrackItem({
+        id,
+        title: downloaded.title,
+        artist: downloaded.artist,
+        status: 'completed',
+        progress: 100,
+        indeterminate: false
+      })
+      currentTrackId = id
+
+      appendHistory(
+        createHistoryEntry({
+          trackId,
+          title: downloaded.title,
+          artist: downloaded.artist,
+          url: finalUrl,
+          filePath,
+          sizeBytes
+        })
+      )
+
+      emit({
+        type: 'track-complete',
+        id,
+        title: downloaded.title,
+        artist: downloaded.artist,
+        url: finalUrl,
+        filePath,
+        sizeBytes
+      })
+
+      if (session) {
+        session.totalDownloads += 1
+      }
+      return
+    }
+
+    const skip = parseSpotifySkip(trimmed)
+    if (skip) {
+      const { artist, title } = splitSpotifyDisplayName(skip.displayName)
+      const id = currentTrackId && isSyntheticTrackId(currentTrackId) ? currentTrackId : makeTrackId()
+      const merged = upsertTrackItem({
+        id,
+        title,
+        artist,
+        status: 'skipped',
+        progress: 100,
+        indeterminate: false,
+        message: skip.reason
+      })
+      currentTrackId = merged.id
+      emit({
+        type: 'track-skipped',
+        id: merged.id,
+        title: merged.title,
+        artist: merged.artist,
+        reason: skip.reason
+      })
+      return
+    }
+
+    const progress = parseSpotifyProgress(trimmed)
+    if (progress) {
+      const { artist, title } = splitSpotifyDisplayName(progress.displayName)
+      const statusLower = progress.status.toLowerCase()
+
+      if (statusLower === 'error') {
+        const id = currentTrackId ?? makeTrackId()
+        upsertTrackItem({
+          id,
+          title,
+          artist,
+          status: 'error',
+          progress: progress.progress,
+          indeterminate: false,
+          message: trimmed
+        })
+        emit({ type: 'track-error', id, title, message: trimmed })
+        return
+      }
+
+      if (statusLower === 'skipped') {
+        const id = currentTrackId && isSyntheticTrackId(currentTrackId) ? currentTrackId : makeTrackId()
+        const merged = upsertTrackItem({
+          id,
+          title,
+          artist,
+          status: 'skipped',
+          progress: 100,
+          indeterminate: false,
+          message: 'Skipped'
+        })
+        currentTrackId = merged.id
+        emit({
+          type: 'track-skipped',
+          id: merged.id,
+          title: merged.title,
+          artist: merged.artist,
+          reason: 'Skipped'
+        })
+        return
+      }
+
+      // Downloading / Converting / Embedding metadata / Done
+      const existing =
+        currentTrackId && queue.has(currentTrackId)
+          ? queue.get(currentTrackId)
+          : Array.from(queue.values()).find(
+              (item) =>
+                item.status === 'downloading' &&
+                tracksMatch(item, { title, artist })
+            )
+
+      const id = existing?.id ?? makeTrackId()
+      const isDone = statusLower === 'done'
+      upsertTrackItem({
+        id,
+        title,
+        artist,
+        status: isDone ? 'completed' : 'downloading',
+        progress: progress.progress,
+        indeterminate: progress.progress < 100 && statusLower === 'downloading'
+      })
+      currentTrackId = id
+
+      if (!existing) {
+        emit({ type: 'track-start', id, title, artist })
+      }
+      emit({
+        type: 'progress',
+        id,
+        progress: progress.progress,
+        indeterminate: progress.progress < 100 && statusLower === 'downloading'
+      })
+      return
+    }
+
+    // Fall through for generic error lines / status-only messages.
+  }
 
   const soundcloudIdMatch = trimmed.match(/\[soundcloud\]\s+(\d+):/i)
   if (soundcloudIdMatch) {
@@ -618,6 +922,7 @@ function handleLine(line: string): void {
       message: filterSkip.reason
     })
     currentTrackId = merged.id
+    appendSessionLogLine(session?.logFilePath ?? null, `Skipped: ${merged.title} — ${filterSkip.reason}`)
     emit({
       type: 'track-skipped',
       id: merged.id,
@@ -651,6 +956,7 @@ function handleLine(line: string): void {
       message: 'Already in archive'
     })
     currentTrackId = merged.id
+    appendSessionLogLine(session?.logFilePath ?? null, `Skipped: ${merged.title} — Already in archive`)
     emit({
       type: 'track-skipped',
       id: merged.id,
@@ -774,6 +1080,7 @@ function handleLine(line: string): void {
         title: finalTitle,
         message: validation.reason ?? 'Download incomplete or corrupt'
       })
+      appendSessionLogLine(session?.logFilePath ?? null, validation.reason ?? 'Download incomplete or corrupt')
       return
     }
 
@@ -848,6 +1155,129 @@ function requestUrlFromContext(line: string): string {
   return urlMatch ? urlMatch[0] : lastRequestUrl
 }
 
+/** Parse spotDL `Downloaded "Artist - Title": <url>` completion lines. */
+function parseSpotifyDownloaded(line: string): { artist: string; title: string; url: string } | null {
+  const match = line.match(/^Downloaded\s+"(.+?)":\s+(\S+)/i)
+  if (!match) return null
+  const display = match[1].trim()
+  const url = match[2].trim()
+  const sep = display.indexOf(' - ')
+  if (sep >= 0) {
+    return {
+      artist: display.slice(0, sep).trim() || 'Unknown',
+      title: display.slice(sep + 3).trim() || display,
+      url
+    }
+  }
+  return { artist: 'Unknown', title: display, url }
+}
+
+/** Parse spotDL `Skipping <name> (file already exists|skip file found)` lines. */
+function parseSpotifySkip(line: string): { displayName: string; reason: string } | null {
+  const match = line.match(/^Skipping\s+(.+?)\s+\((file already exists|skip file found)\)/i)
+  if (!match) return null
+  return {
+    displayName: match[1].trim(),
+    reason: /skip file/i.test(match[2]) ? 'Skip file found' : 'Already downloaded'
+  }
+}
+
+/**
+ * Parse spotDL simple-tui progress lines: `<song>: Downloading|Converting|Embedding metadata|Done|Skipped|Error`.
+ */
+function parseSpotifyProgress(line: string): {
+  displayName: string
+  status: string
+  progress: number
+} | null {
+  const match = line.match(/^(.+?):\s+(Downloading|Converting|Embedding metadata|Done|Skipped|Error)\b/i)
+  if (!match) return null
+  const status = match[2]
+  let progress = 0
+  const lower = status.toLowerCase()
+  if (lower === 'downloading') progress = 25
+  else if (lower === 'converting') progress = 70
+  else if (lower === 'embedding metadata') progress = 95
+  else if (lower === 'done' || lower === 'skipped') progress = 100
+  else if (lower === 'error') progress = 0
+  return { displayName: match[1].trim(), status, progress }
+}
+
+function splitSpotifyDisplayName(displayName: string): { artist: string; title: string } {
+  const sep = displayName.indexOf(' - ')
+  if (sep >= 0) {
+    return {
+      artist: displayName.slice(0, sep).trim() || 'Unknown',
+      title: displayName.slice(sep + 3).trim() || displayName
+    }
+  }
+  return { artist: 'Unknown', title: displayName }
+}
+
+/**
+ * Resolve a spotDL output file under `rootDir` whose basename matches
+ * `Artist - Title.m4a` (or similar). spotDL does not emit .info.json sidecars,
+ * so history relies on this filesystem lookup after the Downloaded line.
+ */
+function resolveSpotifyOutputFile(rootDir: string, artist: string, title: string): string {
+  const expectedBase = `${artist} - ${title}`.toLowerCase()
+  const candidates: string[] = []
+
+  const walk = (dir: string, depth: number): void => {
+    if (depth > 2 || !existsSync(dir)) return
+    try {
+      for (const name of readdirSync(dir)) {
+        const full = join(dir, name)
+        let isDir = false
+        try {
+          isDir = statSync(full).isDirectory()
+        } catch {
+          continue
+        }
+        if (isDir) {
+          walk(full, depth + 1)
+          continue
+        }
+        if (!/\.(m4a|mp3|opus|flac|ogg|wav)$/i.test(name)) continue
+        const base = name.replace(/\.[^.]+$/, '').toLowerCase()
+        if (base === expectedBase || base.includes(expectedBase) || expectedBase.includes(base)) {
+          candidates.push(full)
+        }
+      }
+    } catch {
+      // unreadable
+    }
+  }
+
+  walk(rootDir, 0)
+  if (candidates.length === 0) {
+    return join(rootDir, `${artist} - ${title}.m4a`)
+  }
+  // Prefer the most recently modified match.
+  candidates.sort((a, b) => {
+    try {
+      return statSync(b).mtimeMs - statSync(a).mtimeMs
+    } catch {
+      return 0
+    }
+  })
+  return candidates[0]
+}
+
+function spotifyTrackIdFromUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    const parts = parsed.pathname.split('/').filter(Boolean)
+    const trackIdx = parts.indexOf('track')
+    if (trackIdx >= 0 && parts[trackIdx + 1]) return `spotify-${parts[trackIdx + 1]}`
+  } catch {
+    // ignore
+  }
+  const ytMatch = url.match(/[?&]v=([^&]+)/) || url.match(/youtu\.be\/([^?&/]+)/)
+  if (ytMatch) return `yt-${ytMatch[1]}`
+  return `spotify-${Date.now()}`
+}
+
 function safeFileSize(filePath: string): number {
   if (!existsSync(filePath)) return 0
   try {
@@ -894,6 +1324,7 @@ function attachProcessHandlers(proc: ChildProcessWithoutNullStreams): void {
 
   proc.on('error', (error) => {
     if (activeProcess === proc) activeProcess = null
+    appendSessionLogLine(session?.logFilePath ?? null, error.message)
     emit({ type: 'error', message: error.message })
     finalize(false, error.message)
   })
@@ -913,10 +1344,7 @@ function maybeStartCooldown(): void {
   if (s.chunkDownloads < s.chunkSize) return
 
   s.killedForCooldown = true
-  emit({
-    type: 'status',
-    message: `Chunk of ${s.chunkSize} done — pausing to avoid throttling...`
-  })
+  emitStatus(`Chunk of ${s.chunkSize} done — pausing to avoid throttling...`)
   if (activeProcess) {
     activeProcess.kill()
   }
@@ -932,6 +1360,7 @@ function startCooldown(seconds: number, reason: 'chunk' | 'throttle'): void {
 
   // The renderer turns `seconds` + these fields into a live countdown, so we no
   // longer emit a separate static 'status' line (it would fight the ticking timer).
+  appendSessionLogLine(session?.logFilePath ?? null, message)
   emit({
     type: 'cooldown',
     reason,
@@ -1004,6 +1433,7 @@ function spawnRun(): void {
     attachProcessHandlers(activeProcess)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to start scdl'
+    appendSessionLogLine(session?.logFilePath ?? null, message)
     emit({ type: 'error', message })
     finalize(false, message)
   }
@@ -1013,25 +1443,19 @@ function spawnRun(): void {
 function postSessionFolderCleanup(outputPath: string): void {
   const removed = cleanupPartials(outputPath)
   if (removed > 0) {
-    emit({ type: 'status', message: `Removed ${removed} leftover partial file(s).` })
+    emitStatus(`Removed ${removed} leftover partial file(s).`)
   }
 
   const corruptRemoved = sweepCorruptMedia(outputPath)
   if (corruptRemoved > 0) {
-    emit({
-      type: 'status',
-      message: `Removed ${corruptRemoved} incomplete or corrupt track file(s).`
-    })
+    emitStatus(`Removed ${corruptRemoved} incomplete or corrupt track file(s).`)
   }
 
   try {
     const { merged, added } = reconcileHistoryEntries(loadHistory(), outputPath)
     if (added.length > 0) {
       saveHistory(merged)
-      emit({
-        type: 'status',
-        message: `Reconciled inventory — recovered ${added.length} track(s) missing from history.`
-      })
+      emitStatus(`Reconciled backpack — recovered ${added.length} track(s) missing from history.`)
     }
   } catch {
     // Best-effort: never let a reconciliation hiccup block session completion.
@@ -1052,6 +1476,7 @@ function finalize(success: boolean, message: string): void {
     clearTimeout(session.cooldownTimer)
   }
   const s = session
+  appendSessionLogLine(s.logFilePath, message)
   persistSessionSnapshot(s, success, message)
   const outputPath = s.outputPath
   session = null
@@ -1082,9 +1507,9 @@ export function startDownload(window: BrowserWindow, request: DownloadRequest): 
   let command: string
   let args: string[]
   let outputPath: string
-  // YouTube routes through the embedded yt-dlp (audio-only); SoundCloud through
-  // scdl. Chunk cooldowns are SoundCloud-throttle-specific, so YouTube runs with
-  // chunkSize 0 (single pass, history reconciled from sidecars at finalize).
+  // YouTube routes through the embedded yt-dlp (audio-only); Spotify through
+  // the embedded spotDL matcher; SoundCloud through scdl. Chunk cooldowns are
+  // SoundCloud-throttle-specific, so YouTube/Spotify run with chunkSize 0.
   let chunkSize = Math.max(0, Math.floor(settings.chunkSize))
 
   if (source === 'youtube') {
@@ -1093,6 +1518,13 @@ export function startDownload(window: BrowserWindow, request: DownloadRequest): 
     command = invocation.command
     args = [...invocation.prelude, ...yt.args]
     outputPath = yt.outputPath
+    chunkSize = 0
+  } else if (source === 'spotify') {
+    const sp = buildSpotifyArgs(request)
+    const invocation = getSpotdlInvocation()
+    command = invocation.command
+    args = [...invocation.prelude, ...sp.args]
+    outputPath = sp.outputPath
     chunkSize = 0
   } else {
     command = getScdlPath()
@@ -1117,11 +1549,17 @@ export function startDownload(window: BrowserWindow, request: DownloadRequest): 
     sawThrottle: false,
     killedForCooldown: false,
     cancelled: false,
-    cooldownTimer: null
+    cooldownTimer: null,
+    logFilePath: null
   }
 
-  const label = source === 'youtube' ? 'YouTube (audio)' : 'SoundCloud'
-  emit({ type: 'status', message: `Starting ${label} download: ${command} ${args.join(' ')}` })
+  if (settings.logsEnabled) {
+    session.logFilePath = createSessionLogFile(session.startedAt, request, command, args)
+  }
+
+  const label =
+    source === 'youtube' ? 'YouTube (audio)' : source === 'spotify' ? 'Spotify' : 'SoundCloud'
+  emitStatus(`Starting ${label} download: ${command} ${args.join(' ')}`)
   spawnRun()
 
   if (!session) {
@@ -1140,7 +1578,7 @@ export function cancelDownload(): void {
       session.cooldownTimer = null
     }
   }
-  emit({ type: 'status', message: 'Cancelling download…' })
+  emitStatus('Cancelling download…')
 
   const finishCancel = (): void => {
     finalize(false, 'Download cancelled.')
