@@ -1,5 +1,8 @@
 export type DownloadMode = 'uploads' | 'all' | 'likes' | 'playlists' | 'single'
 
+/** Browser profile yt-dlp reads cookies from for YouTube auth (age-gated, private, etc.). */
+export type YouTubeCookiesBrowser = 'chrome' | 'edge' | 'firefox'
+
 export interface AppSettings {
   clientId: string
   authToken: string
@@ -25,6 +28,12 @@ export interface AppSettings {
   limitRate: string
   /** yt-dlp --impersonate target (e.g. "chrome"). Empty disables (needs curl_cffi). */
   impersonateTarget: string
+  /** Pass --cookies-from-browser to yt-dlp for YouTube downloads. */
+  youtubeCookiesFromBrowser: boolean
+  /** Which browser profile to read YouTube cookies from. */
+  youtubeCookiesBrowser: YouTubeCookiesBrowser
+  /** Write full download output to a log file under app data (logs/). */
+  logsEnabled: boolean
 }
 
 export interface HistoryEntry {
@@ -117,6 +126,7 @@ export type ScdlEvent =
       downloaded?: number
     }
   | { type: 'impersonation-warning' }
+  | { type: 'youtube-cookies-hint' }
 
 export interface ScdlApi {
   startDownload: (request: DownloadRequest) => Promise<{ ok: boolean; error?: string }>

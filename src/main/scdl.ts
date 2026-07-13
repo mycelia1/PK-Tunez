@@ -3,8 +3,19 @@ import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { BrowserWindow } from 'electron'
 import { appendHistory, createHistoryEntry } from './archive'
-import { ensureArchiveFile, extractArtistSlug, loadHistory, loadSettings, saveHistory } from './settings'
-import { getScdlPath, getSpawnEnv, getYtDlpInvocation } from './binPaths'
+import {
+  ensureArchiveFile,
+  extractArtistSlug,
+  loadHistory,
+  loadSettings,
+  saveHistory
+} from './settings'
+import {
+  getScdlPath,
+  getSpawnEnv,
+  getYtDlpInvocation,
+  getBundledDenoPath
+} from './binPaths'
 import { decodeScdlOutput } from './scdlEncoding'
 import { resolveCompletedTrackPath } from './resolveAudioPath'
 import { parseTrackFileName, reconcileHistoryEntries, collectAudioFiles } from './reconcileHistory'
@@ -12,6 +23,7 @@ import { collectSidecars, findSidecarForMedia, historyEntryFromSidecar } from '.
 import { removeArchiveEntry } from './archiveMutate'
 import { deleteMediaAndSidecar, validateCompletedMedia } from './validateMedia'
 import { appendSession } from './sessionLog'
+import { appendSessionLogLine, createSessionLogFile } from './downloadLog'
 import {
   classifyYouTubeUrl,
   detectSource,
@@ -55,6 +67,14 @@ interface DownloadSession {
   killedForCooldown: boolean
   cancelled: boolean
   cooldownTimer: ReturnType<typeof setTimeout> | null
+  logFilePath: string | null
+}
+
+function emitStatus(message: string): void {
+  const trimmed = message.trim()
+  if (!trimmed) return
+  appendSessionLogLine(session?.logFilePath ?? null, trimmed)
+  emit({ type: 'status', message: trimmed })
 }
 
 let session: DownloadSession | null = null
@@ -336,7 +356,7 @@ function buildArgs(request: DownloadRequest): string[] {
 }
 
 /**
- * yt-dlp status lines that must not become fake Party Roster rows (they never
+ * yt-dlp status lines that must not become fake Psychic Stream rows (they never
  * get a matching destination/completion event).
  */
 function isYtDlpNoiseLine(line: string): boolean {
@@ -440,6 +460,13 @@ function buildYouTubeArgs(request: DownloadRequest): {
   if (settings.limitTrackLength) {
     const seconds = Math.max(1, settings.maxTrackLengthMinutes) * 60
     args.push('--match-filter', `duration < ${seconds}`)
+  }
+  if (settings.youtubeCookiesFromBrowser) {
+    args.push('--cookies-from-browser', settings.youtubeCookiesBrowser.trim() || 'firefox')
+  }
+  const denoPath = getBundledDenoPath()
+  if (denoPath) {
+    args.push('--js-runtimes', `deno:${denoPath}`)
   }
 
   return { args, outputPath }
@@ -572,6 +599,17 @@ function parseFilterSkip(line: string): { title: string; reason: string } | null
   return { title, reason }
 }
 
+/** YouTube lines that mean a logged-in browser session is required. */
+function isYouTubeCookiesNeeded(line: string): boolean {
+  const lower = line.toLowerCase()
+  if (!lower.includes('[youtube]') && !lower.includes('youtube')) return false
+  return (
+    lower.includes('cookies-from-browser') ||
+    lower.includes('use --cookies') ||
+    lower.includes('sign in to confirm')
+  )
+}
+
 function handleLine(line: string): void {
   const trimmed = line.trim()
   if (!trimmed) return
@@ -586,11 +624,13 @@ function handleLine(line: string): void {
     (/\b429\b/.test(lower) && (lower.includes('error') || lower.includes('http')))
   if (is403 || is429) {
     if (session) session.sawThrottle = true
+    const throttleMessage = is403
+      ? 'SoundCloud refused a request (HTTP 403) — likely throttling this session. PK-Tunez will back off and retry automatically.'
+      : 'SoundCloud is throttling requests (HTTP 429). PK-Tunez will slow down and resume automatically.'
+    appendSessionLogLine(session?.logFilePath ?? null, throttleMessage)
     emit({
       type: 'rate-limit',
-      message: is403
-        ? 'SoundCloud refused a request (HTTP 403) — likely throttling this session. PK-Tunez will back off and retry automatically.'
-        : 'SoundCloud is throttling requests (HTTP 429). PK-Tunez will slow down and resume automatically.'
+      message: throttleMessage
     })
   }
 
@@ -598,7 +638,11 @@ function handleLine(line: string): void {
     emit({ type: 'impersonation-warning' })
   }
 
-  emit({ type: 'status', message: trimmed })
+  if (currentSource === 'youtube' && isYouTubeCookiesNeeded(trimmed)) {
+    emit({ type: 'youtube-cookies-hint' })
+  }
+
+  emitStatus(trimmed)
 
   const soundcloudIdMatch = trimmed.match(/\[soundcloud\]\s+(\d+):/i)
   if (soundcloudIdMatch) {
@@ -618,6 +662,7 @@ function handleLine(line: string): void {
       message: filterSkip.reason
     })
     currentTrackId = merged.id
+    appendSessionLogLine(session?.logFilePath ?? null, `Skipped: ${merged.title} — ${filterSkip.reason}`)
     emit({
       type: 'track-skipped',
       id: merged.id,
@@ -651,6 +696,7 @@ function handleLine(line: string): void {
       message: 'Already in archive'
     })
     currentTrackId = merged.id
+    appendSessionLogLine(session?.logFilePath ?? null, `Skipped: ${merged.title} — Already in archive`)
     emit({
       type: 'track-skipped',
       id: merged.id,
@@ -774,6 +820,7 @@ function handleLine(line: string): void {
         title: finalTitle,
         message: validation.reason ?? 'Download incomplete or corrupt'
       })
+      appendSessionLogLine(session?.logFilePath ?? null, validation.reason ?? 'Download incomplete or corrupt')
       return
     }
 
@@ -894,6 +941,7 @@ function attachProcessHandlers(proc: ChildProcessWithoutNullStreams): void {
 
   proc.on('error', (error) => {
     if (activeProcess === proc) activeProcess = null
+    appendSessionLogLine(session?.logFilePath ?? null, error.message)
     emit({ type: 'error', message: error.message })
     finalize(false, error.message)
   })
@@ -913,10 +961,7 @@ function maybeStartCooldown(): void {
   if (s.chunkDownloads < s.chunkSize) return
 
   s.killedForCooldown = true
-  emit({
-    type: 'status',
-    message: `Chunk of ${s.chunkSize} done — pausing to avoid throttling...`
-  })
+  emitStatus(`Chunk of ${s.chunkSize} done — pausing to avoid throttling...`)
   if (activeProcess) {
     activeProcess.kill()
   }
@@ -932,6 +977,7 @@ function startCooldown(seconds: number, reason: 'chunk' | 'throttle'): void {
 
   // The renderer turns `seconds` + these fields into a live countdown, so we no
   // longer emit a separate static 'status' line (it would fight the ticking timer).
+  appendSessionLogLine(session?.logFilePath ?? null, message)
   emit({
     type: 'cooldown',
     reason,
@@ -1004,6 +1050,7 @@ function spawnRun(): void {
     attachProcessHandlers(activeProcess)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to start scdl'
+    appendSessionLogLine(session?.logFilePath ?? null, message)
     emit({ type: 'error', message })
     finalize(false, message)
   }
@@ -1013,25 +1060,19 @@ function spawnRun(): void {
 function postSessionFolderCleanup(outputPath: string): void {
   const removed = cleanupPartials(outputPath)
   if (removed > 0) {
-    emit({ type: 'status', message: `Removed ${removed} leftover partial file(s).` })
+    emitStatus(`Removed ${removed} leftover partial file(s).`)
   }
 
   const corruptRemoved = sweepCorruptMedia(outputPath)
   if (corruptRemoved > 0) {
-    emit({
-      type: 'status',
-      message: `Removed ${corruptRemoved} incomplete or corrupt track file(s).`
-    })
+    emitStatus(`Removed ${corruptRemoved} incomplete or corrupt track file(s).`)
   }
 
   try {
     const { merged, added } = reconcileHistoryEntries(loadHistory(), outputPath)
     if (added.length > 0) {
       saveHistory(merged)
-      emit({
-        type: 'status',
-        message: `Reconciled inventory — recovered ${added.length} track(s) missing from history.`
-      })
+      emitStatus(`Reconciled backpack — recovered ${added.length} track(s) missing from history.`)
     }
   } catch {
     // Best-effort: never let a reconciliation hiccup block session completion.
@@ -1052,6 +1093,7 @@ function finalize(success: boolean, message: string): void {
     clearTimeout(session.cooldownTimer)
   }
   const s = session
+  appendSessionLogLine(s.logFilePath, message)
   persistSessionSnapshot(s, success, message)
   const outputPath = s.outputPath
   session = null
@@ -1117,11 +1159,16 @@ export function startDownload(window: BrowserWindow, request: DownloadRequest): 
     sawThrottle: false,
     killedForCooldown: false,
     cancelled: false,
-    cooldownTimer: null
+    cooldownTimer: null,
+    logFilePath: null
+  }
+
+  if (settings.logsEnabled) {
+    session.logFilePath = createSessionLogFile(session.startedAt, request, command, args)
   }
 
   const label = source === 'youtube' ? 'YouTube (audio)' : 'SoundCloud'
-  emit({ type: 'status', message: `Starting ${label} download: ${command} ${args.join(' ')}` })
+  emitStatus(`Starting ${label} download: ${command} ${args.join(' ')}`)
   spawnRun()
 
   if (!session) {
@@ -1140,7 +1187,7 @@ export function cancelDownload(): void {
       session.cooldownTimer = null
     }
   }
-  emit({ type: 'status', message: 'Cancelling download…' })
+  emitStatus('Cancelling download…')
 
   const finishCancel = (): void => {
     finalize(false, 'Download cancelled.')

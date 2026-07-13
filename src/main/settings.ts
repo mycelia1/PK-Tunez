@@ -19,7 +19,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   maxSleepIntervalSeconds: 8,
   sleepRequestsSeconds: 1.5,
   limitRate: '',
-  impersonateTarget: ''
+  impersonateTarget: '',
+  youtubeCookiesFromBrowser: false,
+  youtubeCookiesBrowser: 'firefox',
+  logsEnabled: false
 }
 
 function settingsPath(): string {
@@ -45,7 +48,10 @@ export function loadSettings(): AppSettings {
   }
 
   try {
-    const parsed = JSON.parse(readFileSync(path, 'utf8')) as Partial<AppSettings>
+    const parsed = JSON.parse(readFileSync(path, 'utf8')) as Partial<AppSettings> & {
+      youtubeCookiesHintShown?: boolean
+    }
+    delete parsed.youtubeCookiesHintShown
     return { ...DEFAULT_SETTINGS, ...parsed }
   } catch {
     return { ...DEFAULT_SETTINGS }
@@ -54,7 +60,8 @@ export function loadSettings(): AppSettings {
 
 export function saveSettings(partial: Partial<AppSettings>): AppSettings {
   const current = loadSettings()
-  const next = { ...current, ...partial }
+  const next = { ...current, ...partial } as AppSettings & { youtubeCookiesHintShown?: boolean }
+  delete next.youtubeCookiesHintShown
   ensureDir(next.downloadDir)
   ensureDir(join(next.archivePath, '..'))
   writeFileSync(settingsPath(), JSON.stringify(next, null, 2), 'utf8')
