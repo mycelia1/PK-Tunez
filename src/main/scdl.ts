@@ -226,8 +226,11 @@ function buildYtDlpArgs(settings: AppSettings): string {
 
   if (settings.limitTrackLength) {
     const seconds = Math.max(1, settings.maxTrackLengthMinutes) * 60
-    // Quoted so scdl's yt-dlp-args parser keeps "duration < N" as one filter value.
-    parts.push('--match-filter', `"duration < ${seconds}"`)
+    // Quoted so scdl's yt-dlp-args parser keeps the filter as one value. The `?`
+    // after the operator keeps tracks whose duration is unknown/missing; without
+    // it, yt-dlp silently drops any track lacking a duration field (e.g. some
+    // collabs/reposts), not just the long ones.
+    parts.push('--match-filter', `"duration <? ${seconds}"`)
   }
 
   return parts.join(' ')
@@ -463,7 +466,8 @@ function buildYouTubeArgs(request: DownloadRequest): {
   }
   if (settings.limitTrackLength) {
     const seconds = Math.max(1, settings.maxTrackLengthMinutes) * 60
-    args.push('--match-filter', `duration < ${seconds}`)
+    // `<?` keeps tracks with an unknown duration; a bare `<` would drop them.
+    args.push('--match-filter', `duration <? ${seconds}`)
   }
   if (settings.youtubeCookiesFromBrowser) {
     args.push('--cookies-from-browser', settings.youtubeCookiesBrowser.trim() || 'firefox')
@@ -710,6 +714,16 @@ function isYouTubeCookiesNeeded(line: string): boolean {
   )
 }
 
+/**
+ * spotDL lines that mean a track genuinely failed (no match, or the yt-dlp
+ * download errored) versus benign log noise. spotDL routinely prints lines
+ * containing "error"/"failed" for non-fatal things (lyrics-provider misses,
+ * per-source retry notes), which must not be reported as track failures.
+ */
+function isSpotifyFatalError(line: string): boolean {
+  return /AudioProviderError|YT-DLP download error|LookupError|No results? found|MetadataError/i.test(line)
+}
+
 function handleLine(line: string): void {
   const trimmed = line.trim()
   if (!trimmed) return
@@ -901,7 +915,30 @@ function handleLine(line: string): void {
       return
     }
 
-    // Fall through for generic error lines / status-only messages.
+    // spotDL owns its own terminal states. Surface only genuinely fatal lines
+    // (failed match or yt-dlp download error) as track errors; everything else
+    // spotDL prints is benign and must not reach the generic error catch-all
+    // below (which would flag a red error on an otherwise fine session).
+    if (isSpotifyFatalError(trimmed)) {
+      const id = currentTrackId ?? makeTrackId()
+      const existing = queue.get(id)
+      upsertTrackItem({
+        id,
+        title: existing?.title ?? 'Unknown track',
+        artist: existing?.artist ?? 'Unknown',
+        status: 'error',
+        progress: existing?.progress ?? 0,
+        indeterminate: false,
+        message: trimmed
+      })
+      emit({
+        type: 'track-error',
+        id,
+        title: existing?.title ?? 'Unknown track',
+        message: trimmed
+      })
+    }
+    return
   }
 
   const soundcloudIdMatch = trimmed.match(/\[soundcloud\]\s+(\d+):/i)
