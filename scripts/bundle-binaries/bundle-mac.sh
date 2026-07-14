@@ -21,6 +21,10 @@ WORK_DIR="$(mktemp -d -t pk-tunez-bundle-XXXXXX)"
 VENV_DIR="${WORK_DIR}/venv"
 LAUNCHER="${SCRIPT_DIR}/scdl_launcher.py"
 
+# Pinned Deno release used as yt-dlp's JS runtime (--js-runtimes deno:...) so it
+# can solve YouTube's JS challenges for age-restricted / signed content.
+DENO_VERSION="v2.9.1"
+
 echo "PK-Tunez macOS binary bundler"
 echo "  project root: ${PROJECT_ROOT}"
 echo "  work dir:     ${WORK_DIR}"
@@ -36,19 +40,19 @@ trap cleanup EXIT
 
 # 1. Create an isolated virtual environment.
 echo ""
-echo "[1/5] Creating Python venv..."
+echo "[1/6] Creating Python venv..."
 python3 -m venv "${VENV_DIR}"
 PY="${VENV_DIR}/bin/python"
 
 # 2. Install scdl (pulls yt-dlp), curl_cffi (browser impersonation), and PyInstaller.
 echo ""
-echo "[2/5] Installing scdl + curl_cffi + pyinstaller..."
+echo "[2/6] Installing scdl + curl_cffi + pyinstaller..."
 "${PY}" -m pip install --upgrade pip
 "${PY}" -m pip install scdl curl_cffi pyinstaller
 
 # 3. Build standalone scdl with yt-dlp collected in.
 echo ""
-echo "[3/5] Building scdl with PyInstaller..."
+echo "[3/6] Building scdl with PyInstaller..."
 "${PY}" -m PyInstaller \
   --onefile \
   --name scdl \
@@ -72,16 +76,30 @@ chmod +x "${OUT_DIR}/scdl"
 
 # 4. Download static ffmpeg (evermeet.cx provides notarized macOS builds).
 echo ""
-echo "[4/5] Downloading static ffmpeg..."
+echo "[4/6] Downloading static ffmpeg..."
 FFMPEG_ZIP="${WORK_DIR}/ffmpeg.zip"
 curl -L -o "${FFMPEG_ZIP}" 'https://evermeet.cx/ffmpeg/getrelease/zip'
 unzip -o "${FFMPEG_ZIP}" -d "${WORK_DIR}/ffmpeg"
 cp "${WORK_DIR}/ffmpeg/ffmpeg" "${OUT_DIR}/ffmpeg"
 chmod +x "${OUT_DIR}/ffmpeg"
 
-# 5. Smoke-test the bundled binary.
+# 5. Download pinned Deno for the host arch — yt-dlp's JS runtime for YouTube.
 echo ""
-echo "[5/5] Smoke-testing scdl..."
+case "$(uname -m)" in
+  arm64|aarch64) DENO_TARGET="aarch64-apple-darwin" ;;
+  x86_64)        DENO_TARGET="x86_64-apple-darwin" ;;
+  *) echo "Unsupported arch: $(uname -m)" >&2; exit 1 ;;
+esac
+echo "[5/6] Downloading Deno ${DENO_VERSION} (${DENO_TARGET})..."
+DENO_ZIP="${WORK_DIR}/deno.zip"
+curl -L -o "${DENO_ZIP}" "https://github.com/denoland/deno/releases/download/${DENO_VERSION}/deno-${DENO_TARGET}.zip"
+unzip -o "${DENO_ZIP}" -d "${WORK_DIR}/deno"
+cp "${WORK_DIR}/deno/deno" "${OUT_DIR}/deno"
+chmod +x "${OUT_DIR}/deno"
+
+# 6. Smoke-test the bundled binary.
+echo ""
+echo "[6/6] Smoke-testing scdl..."
 # --help only exercises arg parsing. The offline self-test (--pk-selftest)
 # deterministically exercises the full scdl + yt_dlp import chain and the
 # bundled scdl.cfg data file with no network access (a live download would
@@ -106,6 +124,13 @@ if ! "${OUT_DIR}/scdl" pk-ytdlp --version >/dev/null 2>&1; then
   exit 1
 fi
 echo "scdl pk-ytdlp OK (embedded yt-dlp reachable)"
+
+# Verify the bundled Deno runs (also catches an arch mismatch early).
+if ! "${OUT_DIR}/deno" --version >/dev/null 2>&1; then
+  echo "deno --version failed" >&2
+  exit 1
+fi
+echo "deno OK ($("${OUT_DIR}/deno" --version | head -n 1))"
 
 echo ""
 echo "Done. Binaries written to ${OUT_DIR}"

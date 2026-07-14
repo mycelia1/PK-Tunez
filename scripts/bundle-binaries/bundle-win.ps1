@@ -20,6 +20,10 @@ $workDir = Join-Path $env:TEMP "pk-tunez-bundle-$(Get-Random)"
 $venvDir = Join-Path $workDir 'venv'
 $launcher = Join-Path $scriptDir 'scdl_launcher.py'
 
+# Pinned Deno release used as yt-dlp's JS runtime (--js-runtimes deno:...) so it
+# can solve YouTube's JS challenges for age-restricted / signed content.
+$denoVersion = 'v2.9.1'
+
 Write-Host "PK-Tunez Windows binary bundler"
 Write-Host "  project root: $projectRoot"
 Write-Host "  work dir:     $workDir"
@@ -29,17 +33,17 @@ New-Item -ItemType Directory -Force -Path $workDir | Out-Null
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
 # 1. Create an isolated virtual environment.
-Write-Host "`n[1/5] Creating Python venv..."
+Write-Host "`n[1/6] Creating Python venv..."
 python -m venv $venvDir
 $py = Join-Path $venvDir 'Scripts\python.exe'
 
 # 2. Install scdl (pulls yt-dlp), curl_cffi (browser impersonation), and PyInstaller.
-Write-Host "`n[2/5] Installing scdl + curl_cffi + pyinstaller..."
+Write-Host "`n[2/6] Installing scdl + curl_cffi + pyinstaller..."
 & $py -m pip install --upgrade pip
 & $py -m pip install scdl curl_cffi pyinstaller
 
 # 3. Build standalone scdl.exe with yt-dlp collected in.
-Write-Host "`n[3/5] Building scdl.exe with PyInstaller..."
+Write-Host "`n[3/6] Building scdl.exe with PyInstaller..."
 & $py -m PyInstaller `
     --onefile `
     --name scdl `
@@ -61,7 +65,7 @@ Write-Host "`n[3/5] Building scdl.exe with PyInstaller..."
 Copy-Item (Join-Path $workDir 'dist\scdl.exe') (Join-Path $outDir 'scdl.exe') -Force
 
 # 4. Download static ffmpeg.
-Write-Host "`n[4/5] Downloading static ffmpeg..."
+Write-Host "`n[4/6] Downloading static ffmpeg..."
 $ffmpegZip = Join-Path $workDir 'ffmpeg.zip'
 $ffmpegUrl = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip'
 Invoke-WebRequest -Uri $ffmpegUrl -OutFile $ffmpegZip
@@ -70,12 +74,22 @@ Expand-Archive -Path $ffmpegZip -DestinationPath $ffmpegExtract -Force
 $ffmpegExe = Get-ChildItem -Path $ffmpegExtract -Recurse -Filter 'ffmpeg.exe' | Select-Object -First 1
 Copy-Item $ffmpegExe.FullName (Join-Path $outDir 'ffmpeg.exe') -Force
 
-# 5. Smoke-test the bundled binary.
+# 5. Download pinned Deno (x64) — yt-dlp's JS runtime for YouTube challenges.
+Write-Host "`n[5/6] Downloading Deno $denoVersion (x64)..."
+$denoZip = Join-Path $workDir 'deno.zip'
+$denoUrl = "https://github.com/denoland/deno/releases/download/$denoVersion/deno-x86_64-pc-windows-msvc.zip"
+Invoke-WebRequest -Uri $denoUrl -OutFile $denoZip
+$denoExtract = Join-Path $workDir 'deno'
+Expand-Archive -Path $denoZip -DestinationPath $denoExtract -Force
+$denoExe = Get-ChildItem -Path $denoExtract -Recurse -Filter 'deno.exe' | Select-Object -First 1
+Copy-Item $denoExe.FullName (Join-Path $outDir 'deno.exe') -Force
+
+# 6. Smoke-test the bundled binary.
 #    --help only exercises arg parsing. The offline self-test (--pk-selftest)
 #    deterministically exercises the full scdl + yt_dlp import chain and the
 #    bundled scdl.cfg data file with no network access (a live download would
 #    depend on SoundCloud client-id scraping, which is flaky on CI).
-Write-Host "`n[5/5] Smoke-testing scdl.exe..."
+Write-Host "`n[6/6] Smoke-testing scdl.exe..."
 $scdlExe = Join-Path $outDir 'scdl.exe'
 
 $prevEAP = $ErrorActionPreference
@@ -109,6 +123,17 @@ if ($ytdlpExit -ne 0) {
   throw "scdl.exe pk-ytdlp --version failed (exit $ytdlpExit)"
 }
 Write-Host "scdl.exe pk-ytdlp OK (embedded yt-dlp reachable: $($ytdlpOut.Trim()))"
+
+# Verify the bundled Deno runs (also catches an arch mismatch early).
+$ErrorActionPreference = 'Continue'
+$denoOut = (& (Join-Path $outDir 'deno.exe') --version 2>&1 | Out-String)
+$denoExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+if ($denoExit -ne 0) {
+  Write-Host $denoOut
+  throw "deno.exe --version failed (exit $denoExit)"
+}
+Write-Host "deno.exe OK ($(($denoOut -split "`n")[0].Trim()))"
 
 Write-Host "`nDone. Binaries written to $outDir"
 Write-Host "Cleaning up work dir..."
