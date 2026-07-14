@@ -222,8 +222,11 @@ function buildYtDlpArgs(settings: AppSettings): string {
 
   if (settings.limitTrackLength) {
     const seconds = Math.max(1, settings.maxTrackLengthMinutes) * 60
-    // Quoted so scdl's yt-dlp-args parser keeps "duration < N" as one filter value.
-    parts.push('--match-filter', `"duration < ${seconds}"`)
+    // Quoted so scdl's yt-dlp-args parser keeps the filter as one value. The `?`
+    // after the operator keeps tracks whose duration is unknown/missing; without
+    // it, yt-dlp silently drops any track lacking a duration field (e.g. some
+    // collabs/reposts), not just the long ones.
+    parts.push('--match-filter', `"duration <? ${seconds}"`)
   }
 
   return parts.join(' ')
@@ -459,7 +462,8 @@ function buildYouTubeArgs(request: DownloadRequest): {
   }
   if (settings.limitTrackLength) {
     const seconds = Math.max(1, settings.maxTrackLengthMinutes) * 60
-    args.push('--match-filter', `duration < ${seconds}`)
+    // `<?` keeps tracks with an unknown duration; a bare `<` would drop them.
+    args.push('--match-filter', `duration <? ${seconds}`)
   }
   if (settings.youtubeCookiesFromBrowser) {
     args.push('--cookies-from-browser', settings.youtubeCookiesBrowser.trim() || 'firefox')
