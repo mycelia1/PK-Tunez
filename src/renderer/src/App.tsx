@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AppSettings, DownloadMode, HistoryEntry, QueueItem, ScdlEvent } from '../../shared/types'
+import type { AppSettings, DownloadMode, HistoryEntry, MixState, QueueItem, ScdlEvent, SessionSnapshot } from '../../shared/types'
 import { DialogueBox } from './components/DialogueBox'
 import { EbButton } from './components/EbButton'
 import { ImpersonationTipModal } from './components/ImpersonationTipModal'
+import { YouTubeCookiesHintModal } from './components/YouTubeCookiesHintModal'
+import { MixBuilder } from './components/MixBuilder'
 import { ModeConfirmModal } from './components/ModeConfirmModal'
-import { Inventory } from './components/Inventory'
-import { PartyRoster } from './components/PartyRoster'
+import { Backpack } from './components/Backpack'
+import { PsychicStream } from './components/PsychicStream'
 import { PsychicSignalInput } from './components/PsychicSignalInput'
 import { PsiMenu } from './components/PsiMenu'
 import { SessionCompleteModal } from './components/SessionCompleteModal'
+import { SessionLogPanel } from './components/SessionLogPanel'
 import { TitlePanel } from './components/TitlePanel'
 import { initSound, playLoopingSessionComplete, playSound, stopLoopingSound, unlockAudio } from './utils/sound'
 import { useCtrlCShortcut } from './utils/useCtrlCShortcut'
@@ -54,7 +57,10 @@ const defaultSettings: AppSettings = {
   maxSleepIntervalSeconds: 8,
   sleepRequestsSeconds: 1.5,
   limitRate: '',
-  impersonateTarget: ''
+  impersonateTarget: '',
+  youtubeCookiesFromBrowser: false,
+  youtubeCookiesBrowser: 'firefox',
+  logsEnabled: false
 }
 
 export default function App(): JSX.Element {
@@ -70,8 +76,12 @@ export default function App(): JSX.Element {
   const [psiOpen, setPsiOpen] = useState(false)
   const [sessionCompleteOpen, setSessionCompleteOpen] = useState(false)
   const [impersonationTipOpen, setImpersonationTipOpen] = useState(false)
+  const [youtubeCookiesHintOpen, setYoutubeCookiesHintOpen] = useState(false)
   const [modeConfirmOpen, setModeConfirmOpen] = useState(false)
   const [pendingMode, setPendingMode] = useState<DownloadMode | null>(null)
+  const [sessions, setSessions] = useState<SessionSnapshot[]>([])
+  const [mixTrackIds, setMixTrackIds] = useState<Set<string>>(new Set())
+  const [mixVersion, setMixVersion] = useState(0)
   const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const clearCooldownTimer = useCallback(() => {
@@ -86,6 +96,24 @@ export default function App(): JSX.Element {
     setHistory(items)
   }, [])
 
+  const refreshSessions = useCallback(async () => {
+    const loaded = await window.scdl.getSessions()
+    setSessions(loaded)
+  }, [])
+
+  const notifyMixUpdated = useCallback(async () => {
+    const mix: MixState | null = await window.scdl.getMix()
+    setMixTrackIds(new Set(mix?.tracks.map((track) => track.trackId) ?? []))
+    setMixVersion((n) => n + 1)
+  }, [])
+
+  const setMixStatus = useCallback((message: string, variant: 'info' | 'success' | 'error') => {
+    setStatusMessage(message)
+    setStatusVariant(variant)
+    if (variant === 'success') playSound('success')
+    if (variant === 'error') playSound('error')
+  }, [])
+
   const closeSessionComplete = (): void => {
     stopLoopingSound()
     setSessionCompleteOpen(false)
@@ -97,8 +125,10 @@ export default function App(): JSX.Element {
       setSettings(loaded)
       setDraftSettings(loaded)
       await refreshHistory()
+      await refreshSessions()
+      await notifyMixUpdated()
     })()
-  }, [refreshHistory])
+  }, [refreshHistory, refreshSessions, notifyMixUpdated])
 
   useEffect(() => {
     initSound({ enabled: settings.soundEnabled })
@@ -168,6 +198,9 @@ export default function App(): JSX.Element {
             setImpersonationTipOpen(true)
           }
           break
+        case 'youtube-cookies-hint':
+          setYoutubeCookiesHintOpen(true)
+          break
         case 'error':
           setStatusMessage(event.message)
           setStatusVariant('error')
@@ -188,6 +221,7 @@ export default function App(): JSX.Element {
             playSound('error')
           }
           void refreshHistory()
+          void refreshSessions()
           break
         default:
           break
@@ -198,7 +232,7 @@ export default function App(): JSX.Element {
       unsubscribe()
       clearCooldownTimer()
     }
-  }, [refreshHistory, settings.impersonationTipShown, clearCooldownTimer])
+  }, [refreshHistory, refreshSessions, settings.impersonationTipShown, clearCooldownTimer])
 
   const handleDownload = async (): Promise<void> => {
     if (!url.trim()) return
@@ -222,9 +256,6 @@ export default function App(): JSX.Element {
   const handleCancel = useCallback(async (): Promise<void> => {
     clearCooldownTimer()
     await window.scdl.cancelDownload()
-    setIsBusy(false)
-    setStatusMessage('Download cancelled.')
-    setStatusVariant('info')
   }, [clearCooldownTimer])
 
   useCtrlCShortcut(isBusy, () => {
@@ -273,6 +304,15 @@ export default function App(): JSX.Element {
     setDraftSettings((prev) => ({ ...prev, impersonationTipShown: true }))
   }
 
+  const handleDismissYouTubeCookiesHint = (): void => {
+    setYoutubeCookiesHintOpen(false)
+  }
+
+  const handleOpenPsiFromYouTubeHint = (): void => {
+    setYoutubeCookiesHintOpen(false)
+    setPsiOpen(true)
+  }
+
   const handleSetDownloadFolder = async (): Promise<void> => {
     const picked = await window.scdl.pickFolder()
     if (picked) {
@@ -318,14 +358,20 @@ export default function App(): JSX.Element {
           onDownload={() => void handleDownload()}
         />
         <DialogueBox message={statusMessage} variant={statusVariant} />
+        <SessionLogPanel sessions={sessions} />
       </div>
 
       <div className="app-shell__queue">
-        <PartyRoster items={queue} isBusy={isBusy} onCancel={() => void handleCancel()} />
+        <MixBuilder
+          mixVersion={mixVersion}
+          onStatus={setMixStatus}
+          onMixUpdated={() => void notifyMixUpdated()}
+        />
+        <PsychicStream items={queue} isBusy={isBusy} onCancel={() => void handleCancel()} />
       </div>
 
-      <div className="app-shell__inventory">
-        <Inventory items={history} />
+      <div className="app-shell__backpack">
+        <Backpack items={history} mixTrackIds={mixTrackIds} onMixUpdated={() => void notifyMixUpdated()} />
       </div>
 
       <footer className="app-footer">
@@ -346,7 +392,7 @@ export default function App(): JSX.Element {
         onDownloadArchiveFile={() => void handleDownloadArchiveFile()}
       />
 
-      <SessionCompleteModal open={sessionCompleteOpen} onClose={closeSessionComplete} />
+      <SessionCompleteModal open={sessionCompleteOpen} onClose={closeSessionComplete} sessions={sessions} />
 
       <ModeConfirmModal
         open={modeConfirmOpen}
@@ -357,6 +403,12 @@ export default function App(): JSX.Element {
       />
 
       <ImpersonationTipModal open={impersonationTipOpen} onDismiss={() => void handleDismissImpersonationTip()} />
+
+      <YouTubeCookiesHintModal
+        open={youtubeCookiesHintOpen}
+        onDismiss={handleDismissYouTubeCookiesHint}
+        onOpenPsiMenu={handleOpenPsiFromYouTubeHint}
+      />
     </div>
   )
 }

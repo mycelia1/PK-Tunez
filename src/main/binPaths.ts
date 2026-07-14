@@ -32,6 +32,14 @@ export function hasBundledScdl(): boolean {
   return existsSync(join(getBinDir(), SCDL_BINARY))
 }
 
+const DENO_BINARY = isWindows ? 'deno.exe' : 'deno'
+
+/** Absolute path to bundled Deno for yt-dlp YouTube JS challenges, or null if missing. */
+export function getBundledDenoPath(): string | null {
+  const bundled = join(getBinDir(), DENO_BINARY)
+  return existsSync(bundled) ? bundled : null
+}
+
 /**
  * How to invoke yt-dlp for non-SoundCloud (YouTube) downloads.
  *

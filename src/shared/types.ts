@@ -1,5 +1,8 @@
 export type DownloadMode = 'uploads' | 'all' | 'likes' | 'playlists' | 'single'
 
+/** Browser profile yt-dlp reads cookies from for YouTube auth (age-gated, private, etc.). */
+export type YouTubeCookiesBrowser = 'chrome' | 'edge' | 'firefox'
+
 export interface AppSettings {
   clientId: string
   authToken: string
@@ -25,6 +28,12 @@ export interface AppSettings {
   limitRate: string
   /** yt-dlp --impersonate target (e.g. "chrome"). Empty disables (needs curl_cffi). */
   impersonateTarget: string
+  /** Pass --cookies-from-browser to yt-dlp for YouTube downloads. */
+  youtubeCookiesFromBrowser: boolean
+  /** Which browser profile to read YouTube cookies from. */
+  youtubeCookiesBrowser: YouTubeCookiesBrowser
+  /** Write full download output to a log file under app data (logs/). */
+  logsEnabled: boolean
 }
 
 export interface HistoryEntry {
@@ -54,6 +63,48 @@ export interface DownloadRequest {
   mode: DownloadMode
 }
 
+export type SessionOutcome = 'completed' | 'cancelled' | 'failed'
+
+export interface SessionSnapshot {
+  id: string
+  startedAt: number
+  endedAt: number
+  request: DownloadRequest
+  source: 'soundcloud' | 'youtube'
+  outcome: SessionOutcome
+  statusMessage: string
+  statusVariant: 'info' | 'success' | 'error'
+  queue: QueueItem[]
+  counts: {
+    completed: number
+    skipped: number
+    error: number
+    downloading: number
+  }
+}
+
+export interface MixTrackRef {
+  trackId: string
+  title: string
+  artist: string
+  filePath: string
+}
+
+export interface MixState {
+  name: string
+  folderSlug: string
+  tracks: MixTrackRef[]
+}
+
+export interface MixExportResult {
+  ok: boolean
+  copied: number
+  skipped: number
+  exportDir: string
+  skippedTitles: string[]
+  error?: string
+}
+
 export type ScdlEvent =
   | { type: 'status'; message: string }
   | { type: 'queue'; items: QueueItem[] }
@@ -75,6 +126,7 @@ export type ScdlEvent =
       downloaded?: number
     }
   | { type: 'impersonation-warning' }
+  | { type: 'youtube-cookies-hint' }
 
 export interface ScdlApi {
   startDownload: (request: DownloadRequest) => Promise<{ ok: boolean; error?: string }>
@@ -94,6 +146,12 @@ export interface ScdlApi {
   fileExists: (filePath: string, trackId?: string) => Promise<boolean>
   openInDefaultPlayer: (filePath: string) => Promise<{ ok: boolean; error?: string }>
   openFolder: (folderPath: string) => Promise<{ ok: boolean; error?: string }>
+  getSessions: () => Promise<SessionSnapshot[]>
+  getMix: () => Promise<MixState | null>
+  saveMix: (mix: MixState) => Promise<MixState>
+  clearMix: () => Promise<void>
+  openMixPlaylist: () => Promise<{ ok: boolean; error?: string }>
+  exportMix: () => Promise<MixExportResult>
   onEvent: (callback: (event: ScdlEvent) => void) => () => void
 }
 

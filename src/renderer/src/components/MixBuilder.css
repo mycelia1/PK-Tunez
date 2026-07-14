@@ -1,0 +1,151 @@
+.mix-builder {
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.mix-builder__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mix-builder--collapsed .mix-builder__header {
+  margin-bottom: 8px;
+}
+
+.mix-builder__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.mix-builder__summary {
+  margin: 0;
+  font-size: 16px;
+  color: var(--eb-muted);
+}
+
+.mix-builder__title {
+  margin: 0;
+}
+
+.mix-builder__name-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.mix-builder__label {
+  font-size: 14px;
+}
+
+.mix-builder__name {
+  width: 100%;
+}
+
+.mix-builder__name-hint {
+  margin-top: 6px;
+  padding: 8px 10px;
+  font-size: 14px;
+  line-height: 1.35;
+  border: 2px solid var(--eb-outline);
+  background: rgba(255, 220, 220, 0.92);
+  box-shadow: 2px 2px 0 var(--eb-outline);
+}
+
+.mix-builder__empty {
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+
+.mix-builder__list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mix-builder__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 2px solid var(--eb-outline);
+  background: rgba(255, 255, 255, 0.4);
+  cursor: grab;
+}
+
+.mix-builder__item:active {
+  cursor: grabbing;
+}
+
+.mix-builder__drag {
+  opacity: 0.6;
+  user-select: none;
+}
+
+.mix-builder__track {
+  flex: 1;
+  min-width: 0;
+}
+
+.mix-builder__track-title {
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mix-builder__track-artist {
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.mix-builder__remove {
+  flex-shrink: 0;
+}
+
+.mix-builder__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mix-builder-confirm__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 26, 26, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  z-index: 30;
+}
+
+.mix-builder-confirm {
+  width: min(640px, 100%);
+  padding: 20px;
+  background: #fffdf5;
+}
+
+.mix-builder-confirm__title {
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+
+.mix-builder-confirm__text {
+  margin: 0 0 16px;
+  font-size: 20px;
+}
+
+.mix-builder-confirm__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}

@@ -11,5 +11,11 @@ export const IPC = {
   OPEN_FOLDER: 'scdl:open-folder',
   DOWNLOAD_ARCHIVE_FILE: 'scdl:download-archive-file',
   RESOLVE_AUDIO_PATH: 'scdl:resolve-audio-path',
+  GET_SESSIONS: 'scdl:get-sessions',
+  GET_MIX: 'scdl:get-mix',
+  SAVE_MIX: 'scdl:save-mix',
+  CLEAR_MIX: 'scdl:clear-mix',
+  OPEN_MIX_PLAYLIST: 'scdl:open-mix-playlist',
+  EXPORT_MIX: 'scdl:export-mix',
   EVENT: 'scdl:event'
 } as const

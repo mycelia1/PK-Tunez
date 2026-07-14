@@ -2,6 +2,7 @@ import { existsSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
 import type { HistoryEntry } from '../shared/types'
 import { findSidecarForMedia, historyEntryFromSidecar } from './infoSidecar'
+import { validateCompletedMedia } from './validateMedia'
 
 /** Audio extensions scdl/yt-dlp can produce that count as library tracks. */
 const AUDIO_EXTENSIONS = new Set([
@@ -117,7 +118,10 @@ function normalizePathKey(filePath: string): string {
   return filePath.replace(/[\\/]+/g, '/').toLowerCase()
 }
 
-function buildEntryFromFile(filePath: string): HistoryEntry {
+function buildEntryFromFile(filePath: string): HistoryEntry | null {
+  const validation = validateCompletedMedia(filePath, findSidecarForMedia(filePath))
+  if (!validation.ok) return null
+
   // Prefer the exact metadata in a sibling .info.json sidecar (real id + url),
   // falling back to parsing the file name when no sidecar is present.
   const sidecarPath = findSidecarForMedia(filePath)
@@ -169,7 +173,9 @@ export function reconcileHistoryEntries(existing: HistoryEntry[], rootDir: strin
   for (const filePath of collectAudioFiles(rootDir)) {
     const key = normalizePathKey(filePath)
     if (knownPaths.has(key)) continue
-    added.push(buildEntryFromFile(filePath))
+    const entry = buildEntryFromFile(filePath)
+    if (!entry) continue
+    added.push(entry)
     knownPaths.add(key)
   }
 

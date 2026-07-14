@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { HistoryEntry } from '../../../shared/types'
 import { EbButton } from './EbButton'
-import './Inventory.css'
+import './Backpack.css'
 
-interface InventoryProps {
+interface BackpackProps {
   items: HistoryEntry[]
+  mixTrackIds: Set<string>
+  onMixUpdated: () => void
 }
 
 const PAGE_SIZE = 100
@@ -29,7 +31,7 @@ function itemKey(item: HistoryEntry): string {
   return `${item.trackId}-${item.ts}`
 }
 
-export function Inventory({ items }: InventoryProps): JSX.Element {
+export function Backpack({ items, mixTrackIds, onMixUpdated }: BackpackProps): JSX.Element {
   const [resolvedPaths, setResolvedPaths] = useState<Record<string, { exists: boolean; path: string }>>({})
   const resolvedKeys = useRef<Set<string>>(new Set())
   const [query, setQuery] = useState('')
@@ -97,25 +99,44 @@ export function Inventory({ items }: InventoryProps): JSX.Element {
     }
   }
 
+  const handleAddToMix = async (item: HistoryEntry, resolvedPath: string): Promise<void> => {
+    const mix = (await window.scdl.getMix()) ?? { name: 'My Mix', folderSlug: 'My Mix', tracks: [] }
+    if (mix.tracks.some((t) => t.trackId === item.trackId)) return
+
+    await window.scdl.saveMix({
+      ...mix,
+      tracks: [
+        ...mix.tracks,
+        {
+          trackId: item.trackId,
+          title: item.title,
+          artist: item.artist,
+          filePath: resolvedPath
+        }
+      ]
+    })
+    onMixUpdated()
+  }
+
   const isSearching = query.trim().length > 0
   const hasMore = filtered.length > displayed.length
 
   return (
-    <section className="inventory eb-panel" aria-label="Download history inventory">
-      <h2 className="eb-title inventory__title">Inventory</h2>
-      <p className="inventory__hint">Tracks stay listed here even after you move files to a thumb drive.</p>
+    <section className="backpack eb-panel" aria-label="Download history backpack">
+      <h2 className="eb-title backpack__title">Backpack</h2>
+      <p className="backpack__hint">Tracks stay listed here even after you move files to a thumb drive.</p>
 
       {items.length > 0 && (
-        <div className="inventory__search">
+        <div className="backpack__search">
           <input
-            className="eb-input inventory__search-input"
+            className="eb-input backpack__search-input"
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by title, artist, or file name…"
-            aria-label="Search inventory"
+            aria-label="Search backpack"
           />
-          <span className="inventory__count">
+          <span className="backpack__count">
             {isSearching
               ? `${filtered.length} of ${items.length} tracks`
               : `${items.length} tracks`}
@@ -124,44 +145,60 @@ export function Inventory({ items }: InventoryProps): JSX.Element {
       )}
 
       {items.length === 0 ? (
-        <p className="inventory__empty">Your inventory is empty. Completed downloads appear here.</p>
+        <p className="backpack__empty">Your backpack is empty. Completed downloads appear here.</p>
       ) : filtered.length === 0 ? (
-        <p className="inventory__empty">No tracks match “{query.trim()}”.</p>
+        <p className="backpack__empty">No tracks match “{query.trim()}”.</p>
       ) : (
         <>
-          <ul className="inventory__list">
+          <ul className="backpack__list">
             {displayed.map((item) => {
               const key = itemKey(item)
               const resolved = resolvedPaths[key]
               const canPlay = resolved?.exists === true
 
               return (
-                <li key={key} className="inventory__item">
-                  <div className="inventory__icon" aria-hidden="true">
+                <li key={key} className="backpack__item">
+                  <div className="backpack__icon" aria-hidden="true">
                     ♪
                   </div>
-                  <div className="inventory__body">
-                    <div className="inventory__name">{item.title}</div>
-                    <div className="inventory__meta">
+                  <div className="backpack__body">
+                    <div className="backpack__name">{item.title}</div>
+                    <div className="backpack__meta">
                       {item.artist} • {formatSize(item.sizeBytes)} • {formatDate(item.ts)}
                     </div>
                   </div>
-                  {canPlay && (
-                    <EbButton
-                      type="button"
-                      className="eb-button eb-button--secondary inventory__play"
-                      onClick={() => void handlePlay(key, resolved.path)}
-                    >
-                      Play
-                    </EbButton>
-                  )}
+                  <div className="backpack__actions">
+                    {canPlay && (
+                      <EbButton
+                        type="button"
+                        className="eb-button eb-button--secondary backpack__play"
+                        onClick={() => void handlePlay(key, resolved.path)}
+                      >
+                        Play
+                      </EbButton>
+                    )}
+                    {canPlay &&
+                      (mixTrackIds.has(item.trackId) ? (
+                        <EbButton type="button" className="eb-button backpack__in-mix" disabled>
+                          In mix
+                        </EbButton>
+                      ) : (
+                        <EbButton
+                          type="button"
+                          className="eb-button backpack__add-mix"
+                          onClick={() => void handleAddToMix(item, resolved.path)}
+                        >
+                          Add to mix
+                        </EbButton>
+                      ))}
+                  </div>
                 </li>
               )
             })}
           </ul>
 
           {hasMore && (
-            <div className="inventory__more">
+            <div className="backpack__more">
               <EbButton
                 type="button"
                 className="eb-button eb-button--secondary"

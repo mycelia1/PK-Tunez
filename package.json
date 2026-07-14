@@ -1,6 +1,6 @@
 {
   "name": "pk-tunez",
-  "version": "1.0.7",
+  "version": "1.1.0-beta.1",
   "description": "PK-Tunez — EarthBound-style SoundCloud downloader UI",
   "main": "./out/main/index.js",
   "author": {

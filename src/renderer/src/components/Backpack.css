@@ -1,46 +1,48 @@
-.inventory {
+.backpack {
   padding: 18px;
   min-height: 360px;
+  min-width: 0;
+  width: 100%;
 }
 
-.inventory__title {
+.backpack__title {
   font-size: 16px;
   margin: 0 0 8px;
 }
 
-.inventory__hint,
-.inventory__empty {
+.backpack__hint,
+.backpack__empty {
   margin: 0 0 16px;
   color: var(--eb-muted);
   font-size: 18px;
 }
 
-.inventory__search {
+.backpack__search {
   display: flex;
   align-items: center;
   gap: 10px;
   margin: 0 0 14px;
 }
 
-.inventory__search-input {
+.backpack__search-input {
   flex: 1;
   min-width: 0;
 }
 
-.inventory__count {
+.backpack__count {
   flex-shrink: 0;
   color: var(--eb-muted);
   font-size: 14px;
   white-space: nowrap;
 }
 
-.inventory__more {
+.backpack__more {
   display: flex;
   justify-content: center;
   margin-top: 12px;
 }
 
-.inventory__list {
+.backpack__list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -50,30 +52,41 @@
   overflow: auto;
 }
 
-.inventory__item {
+.backpack__item {
   display: grid;
-  grid-template-columns: 36px 1fr auto;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
   gap: 10px;
-  align-items: center;
+  align-items: start;
   padding: 10px;
   border: 3px solid var(--eb-outline);
   border-radius: var(--radius-md);
   background: #fffdf5;
-}
-
-.inventory__body {
   min-width: 0;
 }
 
-.inventory__play {
+.backpack__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   flex-shrink: 0;
-  padding: 8px 12px;
-  font-size: 10px;
 }
 
-.inventory__icon {
+.backpack__play,
+.backpack__add-mix,
+.backpack__in-mix {
+  padding: 8px 12px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.backpack__body {
+  min-width: 0;
+}
+
+.backpack__icon {
   width: 36px;
   height: 36px;
+  margin-top: 2px;
   border: 3px solid var(--eb-outline);
   border-radius: 8px;
   display: grid;
@@ -82,11 +95,15 @@
   font-size: 18px;
 }
 
-.inventory__name {
+.backpack__name {
   font-size: 22px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
-.inventory__meta {
+.backpack__meta {
   font-size: 16px;
+  line-height: 1.3;
   color: var(--eb-muted);
+  overflow-wrap: anywhere;
 }
