@@ -37,19 +37,19 @@
   padding: 12px;
   border: 3px solid var(--eb-outline);
   border-radius: var(--radius-md);
-  background: #f7fbff;
+  background: var(--queue-idle);
 }
 
 .psychic-stream__member--completed {
-  background: #ecffec;
+  background: var(--queue-done);
 }
 
 .psychic-stream__member--skipped {
-  background: #fff8dc;
+  background: var(--queue-skip);
 }
 
 .psychic-stream__member--error {
-  background: #ffe8ef;
+  background: var(--queue-error);
 }
 
 .psychic-stream__avatar {

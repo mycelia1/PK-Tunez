@@ -1,5 +1,8 @@
 export type DownloadMode = 'uploads' | 'all' | 'likes' | 'playlists' | 'single'
 
+/** Visual / audio skin for the renderer UI. */
+export type UiTheme = 'earthbound' | 'dk64'
+
 /** Browser profile yt-dlp reads cookies from for YouTube auth (age-gated, private, etc.). */
 export type YouTubeCookiesBrowser = 'chrome' | 'edge' | 'firefox'
 
@@ -8,6 +11,8 @@ export interface AppSettings {
   authToken: string
   downloadDir: string
   archivePath: string
+  /** UI theme id — earthbound (default) or dk64. */
+  theme: UiTheme
   soundEnabled: boolean
   limitTrackLength: boolean
   maxTrackLengthMinutes: number

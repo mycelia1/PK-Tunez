@@ -1,3 +1,5 @@
+import type { UiTheme } from '../../../shared/types'
+
 import blipUrl from '../assets/sfx/blip.wav'
 import clickUrl from '../assets/sfx/ui-click.wav'
 import completeUrl from '../assets/sfx/complete.wav'
@@ -11,14 +13,80 @@ export type SoundName = 'hover' | 'click' | 'blip' | 'confirm' | 'start' | 'comp
 
 const SESSION_COMPLETE_QUEUE_KEY = 'pk-tunez-session-complete-queue'
 
-const sessionCompleteModules = import.meta.glob('../assets/sfx/session-complete/*.{wav,mp3}', {
+const earthboundSessionModules = import.meta.glob('../assets/sfx/session-complete/*.{wav,mp3}', {
   eager: true,
   import: 'default'
 }) as Record<string, string>
 
-const SESSION_COMPLETE_TRACKS = Object.entries(sessionCompleteModules)
-  .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-  .map(([, url]) => url)
+const dk64SessionModules = import.meta.glob('../assets/sfx/dk64/session-complete/*.{wav,mp3}', {
+  eager: true,
+  import: 'default'
+}) as Record<string, string>
+
+const dk64SfxModules = import.meta.glob('../assets/sfx/dk64/*.{wav,mp3}', {
+  eager: true,
+  import: 'default'
+}) as Record<string, string>
+
+function sortedTrackUrls(modules: Record<string, string>): string[] {
+  return Object.entries(modules)
+    .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+    .map(([, url]) => url)
+}
+
+const SESSION_COMPLETE_BY_THEME: Record<UiTheme, string[]> = {
+  earthbound: sortedTrackUrls(earthboundSessionModules),
+  // Empty until you drop tracks in — falls back to synth (not EarthBound OST).
+  dk64: sortedTrackUrls(dk64SessionModules)
+}
+
+const EARTHBOUND_WAV: Record<SoundName, string> = {
+  hover: hoverUrl,
+  click: clickUrl,
+  blip: blipUrl,
+  confirm: confirmUrl,
+  start: startUrl,
+  complete: completeUrl,
+  success: successUrl,
+  error: errorUrl
+}
+
+/** Map SoundName → expected filename stem under assets/sfx/dk64/ */
+const DK64_SFX_STEMS: Record<SoundName, string[]> = {
+  hover: ['ui-hover', 'hover'],
+  click: ['ui-click', 'click'],
+  blip: ['blip'],
+  confirm: ['confirm'],
+  start: ['start'],
+  complete: ['complete'],
+  success: ['success'],
+  error: ['error']
+}
+
+function resolveDk64Sfx(name: SoundName): string {
+  const stems = DK64_SFX_STEMS[name]
+  const match = Object.entries(dk64SfxModules).find(([path]) => {
+    const file = (path.split(/[/\\]/).pop() ?? '').replace(/\.(wav|mp3)$/i, '')
+    return stems.some((stem) => file.toLowerCase() === stem.toLowerCase())
+  })
+  return match?.[1] ?? EARTHBOUND_WAV[name]
+}
+
+function wavSourcesForTheme(theme: UiTheme): Record<SoundName, string> {
+  if (theme === 'dk64') {
+    return {
+      hover: resolveDk64Sfx('hover'),
+      click: resolveDk64Sfx('click'),
+      blip: resolveDk64Sfx('blip'),
+      confirm: resolveDk64Sfx('confirm'),
+      start: resolveDk64Sfx('start'),
+      complete: resolveDk64Sfx('complete'),
+      success: resolveDk64Sfx('success'),
+      error: resolveDk64Sfx('error')
+    }
+  }
+  return EARTHBOUND_WAV
+}
 
 const HOVER_DEBOUNCE_MS = 60
 const SESSION_COMPLETE_VOLUME = 0.75
@@ -34,24 +102,19 @@ const VOLUME: Record<SoundName, number> = {
   error: 0.7
 }
 
-const WAV_SOURCES: Record<SoundName, string> = {
-  hover: hoverUrl,
-  click: clickUrl,
-  blip: blipUrl,
-  confirm: confirmUrl,
-  start: startUrl,
-  complete: completeUrl,
-  success: successUrl,
-  error: errorUrl
-}
-
 let soundEnabled = true
+let activeTheme: UiTheme = 'earthbound'
+let wavSources = EARTHBOUND_WAV
 let lastHoverAt = 0
 let audioContext: AudioContext | null = null
 let loopingAudio: HTMLAudioElement | null = null
 
-export function initSound(options: { enabled: boolean }): void {
+export function initSound(options: { enabled: boolean; theme?: UiTheme }): void {
   soundEnabled = options.enabled
+  if (options.theme) {
+    activeTheme = options.theme
+    wavSources = wavSourcesForTheme(options.theme)
+  }
   if (!soundEnabled) {
     stopLoopingSound()
   }
@@ -163,8 +226,12 @@ function shuffleIndices(length: number): number[] {
   return indices
 }
 
-function loadSessionCompleteQueue(): number[] {
-  const raw = localStorage.getItem(SESSION_COMPLETE_QUEUE_KEY)
+function queueKeyForTheme(theme: UiTheme): string {
+  return `${SESSION_COMPLETE_QUEUE_KEY}:${theme}`
+}
+
+function loadSessionCompleteQueue(theme: UiTheme): number[] {
+  const raw = localStorage.getItem(queueKeyForTheme(theme))
   if (!raw) return []
 
   try {
@@ -176,27 +243,28 @@ function loadSessionCompleteQueue(): number[] {
   }
 }
 
-function saveSessionCompleteQueue(queue: number[]): void {
-  localStorage.setItem(SESSION_COMPLETE_QUEUE_KEY, JSON.stringify(queue))
+function saveSessionCompleteQueue(theme: UiTheme, queue: number[]): void {
+  localStorage.setItem(queueKeyForTheme(theme), JSON.stringify(queue))
 }
 
 function nextSessionCompleteTrackUrl(): string | null {
-  if (SESSION_COMPLETE_TRACKS.length === 0) return null
+  const tracks = SESSION_COMPLETE_BY_THEME[activeTheme]
+  if (tracks.length === 0) return null
 
-  let queue = loadSessionCompleteQueue().filter((index) => index >= 0 && index < SESSION_COMPLETE_TRACKS.length)
+  let queue = loadSessionCompleteQueue(activeTheme).filter((index) => index >= 0 && index < tracks.length)
   if (queue.length === 0) {
-    queue = shuffleIndices(SESSION_COMPLETE_TRACKS.length)
+    queue = shuffleIndices(tracks.length)
   }
 
   const trackIndex = queue.shift()
   if (trackIndex === undefined) return null
 
-  saveSessionCompleteQueue(queue)
-  return SESSION_COMPLETE_TRACKS[trackIndex] ?? null
+  saveSessionCompleteQueue(activeTheme, queue)
+  return tracks[trackIndex] ?? null
 }
 
 function playWav(name: SoundName): void {
-  const audio = new Audio(WAV_SOURCES[name])
+  const audio = new Audio(wavSources[name])
   audio.volume = VOLUME[name]
   void audio.play().catch(() => playSynth(name))
 }
@@ -247,6 +315,6 @@ export function stopLoopingSound(): void {
   loopingAudio = null
 }
 
-export function getSessionCompleteTrackCount(): number {
-  return SESSION_COMPLETE_TRACKS.length
+export function getSessionCompleteTrackCount(theme: UiTheme = activeTheme): number {
+  return SESSION_COMPLETE_BY_THEME[theme].length
 }

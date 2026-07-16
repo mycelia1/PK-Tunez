@@ -5,6 +5,7 @@ import {
   isInvalidWindowsFilenameChar,
   stripInvalidWindowsFilenameChars
 } from '../../../shared/sources'
+import { useTheme } from '../theme/ThemeContext'
 import { EbButton } from './EbButton'
 import { useEnterKey } from '../utils/useEnterKey'
 import './MixBuilder.css'
@@ -23,6 +24,7 @@ function defaultMix(): MixState {
 }
 
 export function MixBuilder({ mixVersion, onStatus, onMixUpdated }: MixBuilderProps): JSX.Element {
+  const { copy } = useTheme()
   const [mix, setMix] = useState<MixState>(defaultMix())
   const [draftName, setDraftName] = useState('My Mix')
   const [expanded, setExpanded] = useState(true)
@@ -167,7 +169,7 @@ export function MixBuilder({ mixVersion, onStatus, onMixUpdated }: MixBuilderPro
       aria-label="Mix builder"
     >
       <div className="mix-builder__header">
-        <h2 className="eb-title mix-builder__title">Mix Lab</h2>
+        <h2 className="eb-title mix-builder__title">{copy.mixLabTitle}</h2>
         <div className="mix-builder__header-actions">
           <EbButton
             type="button"

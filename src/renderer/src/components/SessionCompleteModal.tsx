@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react'
 import type { SessionSnapshot } from '../../../shared/types'
+import { useTheme } from '../theme/ThemeContext'
 import { EbButton } from './EbButton'
 import { SessionLogPanel } from './SessionLogPanel'
 import { useEnterKey } from '../utils/useEnterKey'
@@ -12,6 +13,7 @@ interface SessionCompleteModalProps {
 }
 
 export function SessionCompleteModal({ open, onClose, sessions }: SessionCompleteModalProps): JSX.Element | null {
+  const { copy } = useTheme()
   useEnterKey(open, onClose)
 
   if (!open) return null
@@ -34,7 +36,7 @@ export function SessionCompleteModal({ open, onClose, sessions }: SessionComplet
         <h2 id="session-complete-title" className="eb-title session-complete__title">
           Download session complete!
         </h2>
-        <p className="session-complete__text">Your psychic signal has been fully processed. Nice work!</p>
+        <p className="session-complete__text">{copy.sessionCompleteText}</p>
         <SessionLogPanel sessions={sessions} compact />
         <EbButton type="submit" className="eb-button session-complete__close">
           Close

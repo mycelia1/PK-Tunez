@@ -1,0 +1,28 @@
+---
+alwaysApply: true
+---
+
+# Encoding: always UTF-8
+
+## Background (this dev machine)
+- Windows UTF-8 beta is enabled (ACP/OEMCP = 65001) after fixing a frozen `scdl.exe` crash.
+- Root cause was piped Python stdout defaulting to cp1252 on non-UTF-8 locales → `UnicodeEncodeError` on non-ASCII SoundCloud titles.
+- `C:\Utilisateurs` is a localized Explorer label for `C:\Users` — not a real path bug.
+
+## Defaults
+- **Text files** (settings, history, archive, logs): read/write with **`utf8` / UTF-8**.
+- **Node `spawn` / `spawnSync`**: pass **`encoding: 'utf8'`** when capturing stdout/stderr.
+- **Bundled Python (`scdl.exe`)**: always spawn via **`getSpawnEnv()`** in `binPaths.ts`, which sets:
+  - `PYTHONUTF8=1`
+  - `PYTHONIOENCODING=utf-8`
+- **Decode child output** with `decodeScdlOutput()` in `scdlEncoding.ts` (UTF-8 first; cp1252 fallback only on Windows if replacement chars appear).
+
+## Do not
+- Assume Windows console or piped Python default to UTF-8 without the env vars above.
+- Switch locale to en-US alone as a “fix” — en-US is still cp1252 unless UTF-8 beta (or PYTHONUTF8) is set.
+- Use PowerShell `>` to redirect binary or mixed-encoding output (corrupts files).
+
+## When debugging encoding issues
+1. Check piped Python: `sys.stdout.encoding` should be `utf-8`.
+2. Check Windows ACP: registry `HKLM\...\Nls\CodePage` → ACP should be `65001` on this machine.
+3. Reproduce with **non-ASCII** track titles (emoji/accents), not ASCII-only test tracks.

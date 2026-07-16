@@ -4,6 +4,12 @@ import { join } from 'path'
 import { registerIpcHandlers } from './ipc'
 import { migrateLegacyUserData } from './migrateUserData'
 import { downloadsBusy, shutdownDownloads } from './scdl'
+import { loadSettings } from './settings'
+
+const THEME_WINDOW_BG = {
+  earthbound: '#4d8cff',
+  dk64: '#2d6b3a'
+} as const
 
 const isDev = !app.isPackaged
 
@@ -20,6 +26,7 @@ function resolveIconPath(): string {
 
 function createWindow(): void {
   const iconPath = resolveIconPath()
+  const theme = loadSettings().theme
   const mainWindow = new BrowserWindow({
     width: 1180,
     height: 820,
@@ -28,7 +35,7 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     title: 'PK-Tunez',
-    backgroundColor: '#4d8cff',
+    backgroundColor: THEME_WINDOW_BG[theme] ?? THEME_WINDOW_BG.earthbound,
     icon: existsSync(iconPath) ? iconPath : undefined,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

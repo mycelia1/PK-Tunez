@@ -1,7 +1,7 @@
 .mode-confirm__backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(26, 26, 26, 0.45);
+  background: var(--modal-scrim);
   display: grid;
   place-items: center;
   padding: 20px;
@@ -11,7 +11,7 @@
 .mode-confirm {
   width: min(640px, 100%);
   padding: 20px;
-  background: #fffdf5;
+  background: var(--panel-cream);
 }
 
 .mode-confirm__title {

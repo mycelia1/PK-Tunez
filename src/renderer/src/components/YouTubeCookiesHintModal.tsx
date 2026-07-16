@@ -1,4 +1,5 @@
 import type { FormEvent } from 'react'
+import { useTheme } from '../theme/ThemeContext'
 import { EbButton } from './EbButton'
 import { useEnterKey } from '../utils/useEnterKey'
 import './YouTubeCookiesHintModal.css'
@@ -14,6 +15,7 @@ export function YouTubeCookiesHintModal({
   onDismiss,
   onOpenPsiMenu
 }: YouTubeCookiesHintModalProps): JSX.Element | null {
+  const { copy } = useTheme()
   useEnterKey(open, onDismiss)
 
   if (!open) return null
@@ -34,7 +36,7 @@ export function YouTubeCookiesHintModal({
         onSubmit={handleSubmit}
       >
         <h2 id="youtube-cookies-hint-title" className="eb-title youtube-cookies-hint__title">
-          PSI Tip: YouTube Sign-In Required
+          {copy.tipPrefix}: YouTube Sign-In Required
         </h2>
         <p className="youtube-cookies-hint__text">
           This video needs a logged-in YouTube session (age-restricted, private, or similar). PK-Tunez can borrow
@@ -47,17 +49,17 @@ export function YouTubeCookiesHintModal({
           </li>
           <li>Sign in to YouTube in Firefox and confirm the video plays there.</li>
           <li>
-            Open <strong>PSI Menu</strong> → <strong>YouTube settings</strong> → enable{' '}
+            Open <strong>{copy.psiMenuTitle}</strong> → <strong>YouTube settings</strong> → enable{' '}
             <strong>Use cookies from browser</strong> and select <strong>Firefox</strong>.
           </li>
-          <li>Save PSI settings, then retry the download.</li>
+          <li>Save settings, then retry the download.</li>
         </ol>
         <p className="youtube-cookies-hint__text">
           Cookies stay on your machine and are only passed to yt-dlp for the download.
         </p>
         <div className="youtube-cookies-hint__actions">
           <EbButton type="button" className="eb-button eb-button--secondary" onClick={onOpenPsiMenu}>
-            Open PSI Menu
+            {copy.psiMenuOpen}
           </EbButton>
           <EbButton type="submit" className="eb-button">
             Got it

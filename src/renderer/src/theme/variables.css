@@ -1,4 +1,5 @@
-:root {
+:root,
+[data-theme='earthbound'] {
   --eb-sky: #4d8cff;
   --eb-yellow: #ffd23f;
   --eb-pink: #ff7eb6;
@@ -8,10 +9,77 @@
   --eb-hp-yellow: #ffd23f;
   --eb-hp-red: #ff5d5d;
   --eb-muted: #5a6478;
+
+  --panel-cream: #fffdf5;
+  --panel-inset: #eef4ff;
+  --panel-section: #faf8ef;
+  --queue-idle: #f7fbff;
+  --queue-done: #ecffec;
+  --queue-skip: #fff8dc;
+  --queue-error: #ffe8ef;
+  --hp-track: #dfe7ff;
+  --hp-track-mid: #fff3bf;
+  --hp-track-low: #ffd0d0;
+  --badge-success: #b8f0a0;
+  --badge-warn: #f0e0a0;
+  --badge-error: #f0a0a0;
+  --cancel-bg: #ff2020;
+  --cancel-bg-hover: #ff4040;
+  --cancel-shadow: #8b0000;
+  --modal-scrim: rgba(26, 26, 26, 0.45);
+
   --border-thick: 4px;
   --radius-lg: 18px;
   --radius-md: 12px;
   --shadow-panel: 6px 6px 0 rgba(26, 26, 26, 0.35);
   --font-heading: 'Press Start 2P', monospace;
   --font-body: 'VT323', monospace;
+
+  /* Decorative body pattern accents (used by global.css) */
+  --bg-dot-a: rgba(255, 210, 63, 0.25);
+  --bg-dot-b: rgba(255, 126, 182, 0.18);
+  --bg-checker: rgba(255, 255, 255, 0.08);
+}
+
+/* DK64 palette — tweak freely once art direction is locked in */
+[data-theme='dk64'] {
+  --eb-sky: #2d6b3a;
+  --eb-yellow: #f5d76e;
+  --eb-pink: #e85d4c;
+  --eb-outline: #1a1208;
+  --eb-dialog-bg: #fff8e7;
+  --eb-hp-green: #6bcf4a;
+  --eb-hp-yellow: #f5d76e;
+  --eb-hp-red: #e85d4c;
+  --eb-muted: #5c4a32;
+
+  --panel-cream: #fff4d6;
+  --panel-inset: #e8f0d8;
+  --panel-section: #f7ecd0;
+  --queue-idle: #eef6e4;
+  --queue-done: #dff5c8;
+  --queue-skip: #fff3c4;
+  --queue-error: #ffd6cc;
+  --hp-track: #d8e8c8;
+  --hp-track-mid: #fff0b0;
+  --hp-track-low: #ffc8b8;
+  --badge-success: #b8e890;
+  --badge-warn: #f0e090;
+  --badge-error: #f0a890;
+  --cancel-bg: #c0392b;
+  --cancel-bg-hover: #e74c3c;
+  --cancel-shadow: #5c1a12;
+  --modal-scrim: rgba(26, 18, 8, 0.5);
+
+  --border-thick: 5px;
+  --radius-lg: 14px;
+  --radius-md: 10px;
+  --shadow-panel: 7px 7px 0 rgba(26, 18, 8, 0.4);
+  /* Drop custom DK fonts into assets/themes/dk64/fonts/ and wire here later */
+  --font-heading: 'Press Start 2P', 'Arial Black', Impact, sans-serif;
+  --font-body: 'VT323', 'Trebuchet MS', sans-serif;
+
+  --bg-dot-a: rgba(245, 215, 110, 0.28);
+  --bg-dot-b: rgba(232, 93, 76, 0.2);
+  --bg-checker: rgba(255, 255, 255, 0.06);
 }

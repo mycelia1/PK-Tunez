@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { HistoryEntry } from '../../../shared/types'
+import { useTheme } from '../theme/ThemeContext'
 import { EbButton } from './EbButton'
 import './Backpack.css'
 
@@ -28,10 +29,11 @@ function fileNameOf(filePath: string): string {
 }
 
 function itemKey(item: HistoryEntry): string {
-  return `${item.trackId}-${item.ts}`
+  return `${item.trackId}-${item.ts}-${item.filePath}`
 }
 
 export function Backpack({ items, mixTrackIds, onMixUpdated }: BackpackProps): JSX.Element {
+  const { copy } = useTheme()
   const [resolvedPaths, setResolvedPaths] = useState<Record<string, { exists: boolean; path: string }>>({})
   const resolvedKeys = useRef<Set<string>>(new Set())
   const [query, setQuery] = useState('')
@@ -122,9 +124,9 @@ export function Backpack({ items, mixTrackIds, onMixUpdated }: BackpackProps): J
   const hasMore = filtered.length > displayed.length
 
   return (
-    <section className="backpack eb-panel" aria-label="Download history backpack">
-      <h2 className="eb-title backpack__title">Backpack</h2>
-      <p className="backpack__hint">Tracks stay listed here even after you move files to a thumb drive.</p>
+    <section className="backpack eb-panel" aria-label="Download history">
+      <h2 className="eb-title backpack__title">{copy.backpackTitle}</h2>
+      <p className="backpack__hint">{copy.backpackHint}</p>
 
       {items.length > 0 && (
         <div className="backpack__search">
@@ -133,8 +135,8 @@ export function Backpack({ items, mixTrackIds, onMixUpdated }: BackpackProps): J
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by title, artist, or file name…"
-            aria-label="Search backpack"
+            placeholder={copy.backpackSearchPlaceholder}
+            aria-label={copy.backpackSearchAria}
           />
           <span className="backpack__count">
             {isSearching
@@ -145,7 +147,7 @@ export function Backpack({ items, mixTrackIds, onMixUpdated }: BackpackProps): J
       )}
 
       {items.length === 0 ? (
-        <p className="backpack__empty">Your backpack is empty. Completed downloads appear here.</p>
+        <p className="backpack__empty">{copy.backpackEmpty}</p>
       ) : filtered.length === 0 ? (
         <p className="backpack__empty">No tracks match “{query.trim()}”.</p>
       ) : (

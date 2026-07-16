@@ -1,6 +1,8 @@
 import type { FormEvent } from 'react'
 import { useEffect } from 'react'
-import type { AppSettings, YouTubeCookiesBrowser } from '../../../shared/types'
+import type { AppSettings, UiTheme, YouTubeCookiesBrowser } from '../../../shared/types'
+import { THEME_LABELS, UI_THEMES } from '../theme/themes'
+import { useTheme } from '../theme/ThemeContext'
 import { EbButton } from './EbButton'
 import { useEnterKey } from '../utils/useEnterKey'
 import './PsiMenu.css'
@@ -32,6 +34,7 @@ export function PsiMenu({
   onSetArchiveFile,
   onDownloadArchiveFile
 }: PsiMenuProps): JSX.Element | null {
+  const { copy } = useTheme()
   useEnterKey(open, onSave)
 
   useEffect(() => {
@@ -69,7 +72,7 @@ export function PsiMenu({
       >
         <header className="psi-menu__header">
           <h2 id="psi-menu-title" className="eb-title psi-menu__title">
-            PSI Menu
+            {copy.psiMenuTitle}
           </h2>
           <EbButton type="button" className="eb-button eb-button--secondary" onClick={onClose}>
             Close
@@ -78,6 +81,26 @@ export function PsiMenu({
 
         <div className="psi-menu__body">
           <div className="psi-menu__grid">
+            <label className="psi-menu__field">
+              <span className="eb-label">Theme</span>
+              <select
+                className="eb-input"
+                value={settings.theme}
+                onChange={(event) => onChange({ theme: event.target.value as UiTheme })}
+              >
+                {UI_THEMES.map((id) => (
+                  <option key={id} value={id}>
+                    {THEME_LABELS[id]}
+                  </option>
+                ))}
+              </select>
+              <small className="psi-menu__help">
+                Live preview while this menu is open. Save to keep the theme. Drop DK64 art/SFX into{' '}
+                <code>assets/themes/dk64/</code> and <code>src/renderer/src/assets/sfx/dk64/</code> — see{' '}
+                <code>assets/themes/THEMES.md</code>.
+              </small>
+            </label>
+
             <label className="psi-menu__field">
               <span className="eb-label">Download Folder</span>
               <div className="psi-menu__path-row">
@@ -201,7 +224,9 @@ export function PsiMenu({
               />
               <span>Enable retro sound effects</span>
               <small className="psi-menu__help">
-                Session-complete jingles: add .wav or .mp3 files to src/renderer/src/assets/sfx/session-complete/
+                Session-complete jingles: EarthBound →{' '}
+                <code>src/renderer/src/assets/sfx/session-complete/</code>; DK64 →{' '}
+                <code>src/renderer/src/assets/sfx/dk64/session-complete/</code>
               </small>
             </label>
 
@@ -372,7 +397,7 @@ export function PsiMenu({
 
         <footer className="psi-menu__footer">
           <EbButton type="submit" className="eb-button">
-            Save PSI Settings
+            {copy.psiMenuSave}
           </EbButton>
         </footer>
       </form>

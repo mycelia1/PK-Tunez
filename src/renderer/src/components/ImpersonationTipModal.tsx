@@ -1,4 +1,5 @@
 import type { FormEvent } from 'react'
+import { useTheme } from '../theme/ThemeContext'
 import { EbButton } from './EbButton'
 import { useEnterKey } from '../utils/useEnterKey'
 import './ImpersonationTipModal.css'
@@ -8,6 +9,7 @@ interface ImpersonationTipModalProps {
 }
 
 export function ImpersonationTipModal({ open, onDismiss }: ImpersonationTipModalProps): JSX.Element | null {
+  const { copy } = useTheme()
   useEnterKey(open, onDismiss)
 
   if (!open) return null
@@ -27,7 +29,7 @@ export function ImpersonationTipModal({ open, onDismiss }: ImpersonationTipModal
         onClick={(event) => event.stopPropagation()}
         onSubmit={handleSubmit}
       >        <h2 id="impersonation-tip-title" className="eb-title impersonation-tip__title">
-          PSI Tip: Browser Impersonation
+          {copy.tipPrefix}: Browser Impersonation
         </h2>
         <p className="impersonation-tip__text">
           yt-dlp tried to impersonate a browser for SoundCloud but optional dependencies are missing. Downloads

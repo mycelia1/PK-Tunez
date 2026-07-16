@@ -1,7 +1,7 @@
 .session-complete__backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(26, 26, 26, 0.5);
+  background: var(--modal-scrim);
   display: grid;
   place-items: center;
   padding: 20px;

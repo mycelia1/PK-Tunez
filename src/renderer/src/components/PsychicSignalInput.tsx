@@ -2,6 +2,7 @@ import type { FormEvent } from 'react'
 import type { DownloadMode } from '../../../shared/types'
 import { classifyYouTubeUrl, detectSource } from '../../../shared/sources'
 import { DOWNLOAD_MODE_OPTIONS } from '../constants/downloadModes'
+import { useTheme } from '../theme/ThemeContext'
 import { EbButton } from './EbButton'
 import './PsychicSignalInput.css'
 
@@ -35,6 +36,7 @@ export function PsychicSignalInput({
     }
   }
 
+  const { copy } = useTheme()
   const hasUrl = url.trim().length > 0
   const isYouTube = hasUrl && detectSource(url) === 'youtube'
   const youtubeKind = isYouTube ? classifyYouTubeUrl(url) : null
@@ -42,7 +44,7 @@ export function PsychicSignalInput({
   return (
     <form className="psychic-signal eb-panel" aria-label="Download input" onSubmit={handleSubmit}>
       <label className="eb-label psychic-signal__label" htmlFor="psychic-signal-url">
-        Enter Psychic Signal
+        {copy.signalLabel}
       </label>
       <input
         id="psychic-signal-url"
@@ -96,7 +98,7 @@ export function PsychicSignalInput({
         className="eb-button psychic-signal__download"
         disabled={isBusy || !url.trim()}
       >
-        PK DOWNLOAD!
+        {copy.downloadButton}
       </EbButton>
     </form>
   )

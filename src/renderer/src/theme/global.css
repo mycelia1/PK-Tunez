@@ -22,10 +22,10 @@ body {
   line-height: 1.35;
   background-color: var(--eb-sky);
   background-image:
-    radial-gradient(circle at 20% 20%, rgba(255, 210, 63, 0.25) 0 12px, transparent 13px),
-    radial-gradient(circle at 80% 70%, rgba(255, 126, 182, 0.18) 0 10px, transparent 11px),
-    linear-gradient(45deg, rgba(255, 255, 255, 0.08) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.08) 75%),
-    linear-gradient(45deg, rgba(255, 255, 255, 0.08) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.08) 75%);
+    radial-gradient(circle at 20% 20%, var(--bg-dot-a) 0 12px, transparent 13px),
+    radial-gradient(circle at 80% 70%, var(--bg-dot-b) 0 10px, transparent 11px),
+    linear-gradient(45deg, var(--bg-checker) 25%, transparent 25%, transparent 75%, var(--bg-checker) 75%),
+    linear-gradient(45deg, var(--bg-checker) 25%, transparent 25%, transparent 75%, var(--bg-checker) 75%);
   background-size: 120px 120px, 140px 140px, 24px 24px, 24px 24px;
   background-position: 0 0, 40px 60px, 0 0, 12px 12px;
 }
@@ -125,18 +125,18 @@ button {
 }
 
 .eb-button--cancel {
-  background: #ff2020;
+  background: var(--cancel-bg);
   color: #ffffff;
-  box-shadow: 0 4px 0 #8b0000;
+  box-shadow: 0 4px 0 var(--cancel-shadow);
 }
 
 .eb-button--cancel:hover:not(:disabled) {
-  background: #ff4040;
-  box-shadow: 0 6px 0 #8b0000;
+  background: var(--cancel-bg-hover);
+  box-shadow: 0 6px 0 var(--cancel-shadow);
 }
 
 .eb-button--cancel:active:not(:disabled) {
-  box-shadow: 0 1px 0 #8b0000;
+  box-shadow: 0 1px 0 var(--cancel-shadow);
 }
 
 .app-shell {

@@ -182,6 +182,21 @@ function modeFlag(mode: DownloadMode): string[] {
   }
 }
 
+// Every yt-dlp SoundCloud extractor (from `yt-dlp --list-extractors`). Passing
+// this to --use-extractors restricts a SoundCloud run to SoundCloud content, so
+// scdl can't drag in an artist's linked YouTube channel.
+const SOUNDCLOUD_EXTRACTORS = [
+  'soundcloud',
+  'soundcloud:playlist',
+  'soundcloud:related',
+  'soundcloud:search',
+  'soundcloud:set',
+  'soundcloud:trackstation',
+  'soundcloud:user',
+  'soundcloud:user:permalink',
+  'SoundcloudEmbed'
+].join(',')
+
 function buildYtDlpArgs(settings: AppSettings): string {
   // Randomized (jittered) sleep between tracks looks less bot-like than a fixed
   // delay and is the main lever against SoundCloud throttling.
@@ -220,14 +235,26 @@ function buildYtDlpArgs(settings: AppSettings): string {
     parts.push('--impersonate', settings.impersonateTarget.trim())
   }
 
+  // scdl resolves a user's *linked* accounts (e.g. their YouTube channel) and
+  // hands those URLs to its bundled yt-dlp, which would otherwise download
+  // non-SoundCloud content into the download root and never reach the backpack.
+  // Lock every SoundCloud run to SoundCloud content with two layers:
+  //   1. --use-extractors keeps yt-dlp from even engaging a foreign URL, so the
+  //      linked channel is never enumerated (no download, no skip-event spam).
+  //   2. --match-filter is a backstop: any non-SoundCloud item that still slips
+  //      through is dropped on basic metadata, before the format/Deno step.
+  parts.push('--use-extractors', SOUNDCLOUD_EXTRACTORS)
+
+  const matchConditions = ['extractor ~= (?i)soundcloud']
   if (settings.limitTrackLength) {
     const seconds = Math.max(1, settings.maxTrackLengthMinutes) * 60
-    // Quoted so scdl's yt-dlp-args parser keeps the filter as one value. The `?`
-    // after the operator keeps tracks whose duration is unknown/missing; without
-    // it, yt-dlp silently drops any track lacking a duration field (e.g. some
-    // collabs/reposts), not just the long ones.
-    parts.push('--match-filter', `"duration <? ${seconds}"`)
+    // The `?` after the operator keeps tracks whose duration is unknown/missing;
+    // without it, yt-dlp silently drops any track lacking a duration field (e.g.
+    // some collabs/reposts), not just the long ones.
+    matchConditions.push(`duration <? ${seconds}`)
   }
+  // Quoted so scdl's yt-dlp-args parser keeps the whole filter as one value.
+  parts.push('--match-filter', `"${matchConditions.join(' & ')}"`)
 
   return parts.join(' ')
 }
@@ -460,11 +487,15 @@ function buildYouTubeArgs(request: DownloadRequest): {
   if (settings.limitRate.trim()) {
     args.push('--limit-rate', settings.limitRate.trim())
   }
+  // Symmetric guard: keep a YouTube run to YouTube items only. Args are argv here
+  // (no shell), so the filter needs no quoting. Conditions are `&`-joined.
+  const matchConditions = ['extractor ~= (?i)youtube']
   if (settings.limitTrackLength) {
     const seconds = Math.max(1, settings.maxTrackLengthMinutes) * 60
     // `<?` keeps tracks with an unknown duration; a bare `<` would drop them.
-    args.push('--match-filter', `duration <? ${seconds}`)
+    matchConditions.push(`duration <? ${seconds}`)
   }
+  args.push('--match-filter', matchConditions.join(' & '))
   if (settings.youtubeCookiesFromBrowser) {
     args.push('--cookies-from-browser', settings.youtubeCookiesBrowser.trim() || 'firefox')
   }
@@ -872,7 +903,10 @@ function handleLine(line: string): void {
     !lower.includes('not remuxing') &&
     !lower.includes('429') &&
     !lower.includes('403') &&
-    !lower.includes('forbidden')
+    !lower.includes('forbidden') &&
+    // Expected when --use-extractors rejects a foreign URL (e.g. an artist's
+    // linked YouTube channel); it's intentional, not a real download failure.
+    !lower.includes('no suitable extractor')
   ) {
     const id = currentTrackId ?? makeTrackId()
     const existing = queue.get(id)

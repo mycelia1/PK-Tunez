@@ -1,7 +1,7 @@
 .psi-menu__backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(26, 26, 26, 0.45);
+  background: var(--modal-scrim);
   display: grid;
   place-items: center;
   padding: 20px;
@@ -15,7 +15,7 @@
   flex-direction: column;
   width: min(760px, 100%);
   max-height: min(90vh, calc(100dvh - 40px));
-  background: #fffdf5;
+  background: var(--panel-cream);
   overflow: hidden;
 }
 
@@ -86,7 +86,7 @@
   padding: 12px;
   border: 3px solid var(--eb-outline);
   border-radius: var(--radius-md);
-  background: #eef4ff;
+  background: var(--panel-inset);
 }
 
 .psi-menu__inline-code {
@@ -96,7 +96,7 @@
 .psi-menu__section {
   border: 3px solid var(--eb-outline);
   border-radius: var(--radius-md);
-  background: #faf8ef;
+  background: var(--panel-section);
 }
 
 .psi-menu__section-summary {

@@ -1,13 +1,18 @@
 import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import type { AppSettings, HistoryEntry } from '../shared/types'
+import type { AppSettings, HistoryEntry, UiTheme } from '../shared/types'
+
+function normalizeTheme(value: unknown): UiTheme {
+  return value === 'dk64' ? 'dk64' : 'earthbound'
+}
 
 const DEFAULT_SETTINGS: AppSettings = {
   clientId: '',
   authToken: '',
   downloadDir: join(app.getPath('music'), 'pk-tunez'),
   archivePath: join(app.getPath('userData'), 'download-archive.txt'),
+  theme: 'earthbound',
   soundEnabled: true,
   limitTrackLength: true,
   maxTrackLengthMinutes: 60,
@@ -52,7 +57,9 @@ export function loadSettings(): AppSettings {
       youtubeCookiesHintShown?: boolean
     }
     delete parsed.youtubeCookiesHintShown
-    return { ...DEFAULT_SETTINGS, ...parsed }
+    const merged = { ...DEFAULT_SETTINGS, ...parsed }
+    merged.theme = normalizeTheme(merged.theme)
+    return merged
   } catch {
     return { ...DEFAULT_SETTINGS }
   }
@@ -62,6 +69,7 @@ export function saveSettings(partial: Partial<AppSettings>): AppSettings {
   const current = loadSettings()
   const next = { ...current, ...partial } as AppSettings & { youtubeCookiesHintShown?: boolean }
   delete next.youtubeCookiesHintShown
+  next.theme = normalizeTheme(next.theme)
   ensureDir(next.downloadDir)
   ensureDir(join(next.archivePath, '..'))
   writeFileSync(settingsPath(), JSON.stringify(next, null, 2), 'utf8')

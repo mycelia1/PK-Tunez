@@ -16,15 +16,15 @@
   border: 3px solid var(--eb-outline);
   border-radius: 999px;
   overflow: hidden;
-  background: #dfe7ff;
+  background: var(--hp-track);
 }
 
 .hp-meter__track--mid {
-  background: #fff3bf;
+  background: var(--hp-track-mid);
 }
 
 .hp-meter__track--low {
-  background: #ffd0d0;
+  background: var(--hp-track-low);
 }
 
 .hp-meter__fill {

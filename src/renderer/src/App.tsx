@@ -13,6 +13,8 @@ import { PsiMenu } from './components/PsiMenu'
 import { SessionCompleteModal } from './components/SessionCompleteModal'
 import { SessionLogPanel } from './components/SessionLogPanel'
 import { TitlePanel } from './components/TitlePanel'
+import { ThemeProvider } from './theme/ThemeContext'
+import { THEME_COPY, applyDocumentTheme } from './theme/themes'
 import { initSound, playLoopingSessionComplete, playSound, stopLoopingSound, unlockAudio } from './utils/sound'
 import { useCtrlCShortcut } from './utils/useCtrlCShortcut'
 import { DEFAULT_DOWNLOAD_MODE, isBulkDownloadMode } from './constants/downloadModes'
@@ -46,6 +48,7 @@ const defaultSettings: AppSettings = {
   authToken: '',
   downloadDir: '',
   archivePath: '',
+  theme: 'earthbound',
   soundEnabled: true,
   limitTrackLength: true,
   maxTrackLengthMinutes: 60,
@@ -70,10 +73,12 @@ export default function App(): JSX.Element {
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [settings, setSettings] = useState<AppSettings>(defaultSettings)
   const [draftSettings, setDraftSettings] = useState<AppSettings>(defaultSettings)
-  const [statusMessage, setStatusMessage] = useState('Welcome! Enter a SoundCloud psychic signal to begin.')
+  const [statusMessage, setStatusMessage] = useState(THEME_COPY.earthbound.welcomeMessage)
   const [statusVariant, setStatusVariant] = useState<'info' | 'error' | 'success'>('info')
   const [isBusy, setIsBusy] = useState(false)
   const [psiOpen, setPsiOpen] = useState(false)
+  /** Draft theme drives live preview; saved theme wins when the menu is closed. */
+  const activeTheme = psiOpen ? draftSettings.theme : settings.theme
   const [sessionCompleteOpen, setSessionCompleteOpen] = useState(false)
   const [impersonationTipOpen, setImpersonationTipOpen] = useState(false)
   const [youtubeCookiesHintOpen, setYoutubeCookiesHintOpen] = useState(false)
@@ -131,8 +136,17 @@ export default function App(): JSX.Element {
   }, [refreshHistory, refreshSessions, notifyMixUpdated])
 
   useEffect(() => {
-    initSound({ enabled: settings.soundEnabled })
-  }, [settings.soundEnabled])
+    applyDocumentTheme(activeTheme)
+    initSound({ enabled: settings.soundEnabled, theme: activeTheme })
+  }, [activeTheme, settings.soundEnabled])
+
+  useEffect(() => {
+    // Refresh welcome line when theme changes and we're still on the default greeting.
+    const welcomeMessages = Object.values(THEME_COPY).map((c) => c.welcomeMessage)
+    if (welcomeMessages.includes(statusMessage)) {
+      setStatusMessage(THEME_COPY[activeTheme].welcomeMessage)
+    }
+  }, [activeTheme, statusMessage])
 
   useEffect(() => {
     const unsubscribe = window.scdl.onEvent((event: ScdlEvent) => {
@@ -239,7 +253,7 @@ export default function App(): JSX.Element {
     clearCooldownTimer()
     setIsBusy(true)
     setQueue([])
-    setStatusMessage('PK DOWNLOAD engaged! Scanning psychic signal...')
+    setStatusMessage(THEME_COPY[activeTheme].downloadEngaged)
     setStatusVariant('info')
     playSound('confirm')
     unlockAudio()
@@ -292,7 +306,7 @@ export default function App(): JSX.Element {
     setSettings(saved)
     setDraftSettings(saved)
     setPsiOpen(false)
-    setStatusMessage('PSI settings saved.')
+    setStatusMessage(THEME_COPY[saved.theme].settingsSaved)
     setStatusVariant('success')
     playSound('success')
   }
@@ -343,72 +357,77 @@ export default function App(): JSX.Element {
   }
 
   return (
-    <div className="app-shell">
-      <div className="app-shell__title">
-        <TitlePanel />
-      </div>
+    <ThemeProvider theme={activeTheme}>
+      <div className="app-shell">
+        <div className="app-shell__title">
+          <TitlePanel />
+        </div>
 
-      <div className="app-shell__input">
-        <PsychicSignalInput
-          url={url}
-          mode={mode}
-          isBusy={isBusy}
-          onUrlChange={setUrl}
-          onModeChange={handleModeChange}
-          onDownload={() => void handleDownload()}
+        <div className="app-shell__input">
+          <PsychicSignalInput
+            url={url}
+            mode={mode}
+            isBusy={isBusy}
+            onUrlChange={setUrl}
+            onModeChange={handleModeChange}
+            onDownload={() => void handleDownload()}
+          />
+          <DialogueBox message={statusMessage} variant={statusVariant} />
+          <SessionLogPanel sessions={sessions} />
+        </div>
+
+        <div className="app-shell__queue">
+          <MixBuilder
+            mixVersion={mixVersion}
+            onStatus={setMixStatus}
+            onMixUpdated={() => void notifyMixUpdated()}
+          />
+          <PsychicStream items={queue} isBusy={isBusy} onCancel={() => void handleCancel()} />
+        </div>
+
+        <div className="app-shell__backpack">
+          <Backpack items={history} mixTrackIds={mixTrackIds} onMixUpdated={() => void notifyMixUpdated()} />
+        </div>
+
+        <footer className="app-footer">
+          <EbButton type="button" className="eb-button eb-button--secondary" onClick={() => setPsiOpen(true)}>
+            {THEME_COPY[activeTheme].psiMenuOpen}
+          </EbButton>
+          <span className="app-footer__note">PK-Tunez • Global archive dedup • Thumb-drive friendly history</span>
+        </footer>
+
+        <PsiMenu
+          open={psiOpen}
+          settings={draftSettings}
+          onClose={() => {
+            setDraftSettings(settings)
+            setPsiOpen(false)
+          }}
+          onChange={(partial) => setDraftSettings((prev) => ({ ...prev, ...partial }))}
+          onSave={() => void handleSaveSettings()}
+          onSetDownloadFolder={() => void handleSetDownloadFolder()}
+          onSetArchiveFile={() => void handleSetArchiveFile()}
+          onDownloadArchiveFile={() => void handleDownloadArchiveFile()}
         />
-        <DialogueBox message={statusMessage} variant={statusVariant} />
-        <SessionLogPanel sessions={sessions} />
-      </div>
 
-      <div className="app-shell__queue">
-        <MixBuilder
-          mixVersion={mixVersion}
-          onStatus={setMixStatus}
-          onMixUpdated={() => void notifyMixUpdated()}
+        <SessionCompleteModal open={sessionCompleteOpen} onClose={closeSessionComplete} sessions={sessions} />
+
+        <ModeConfirmModal
+          open={modeConfirmOpen}
+          pendingMode={pendingMode}
+          currentMode={mode}
+          onConfirm={confirmModeChange}
+          onCancel={cancelModeChange}
         />
-        <PsychicStream items={queue} isBusy={isBusy} onCancel={() => void handleCancel()} />
+
+        <ImpersonationTipModal open={impersonationTipOpen} onDismiss={() => void handleDismissImpersonationTip()} />
+
+        <YouTubeCookiesHintModal
+          open={youtubeCookiesHintOpen}
+          onDismiss={handleDismissYouTubeCookiesHint}
+          onOpenPsiMenu={handleOpenPsiFromYouTubeHint}
+        />
       </div>
-
-      <div className="app-shell__backpack">
-        <Backpack items={history} mixTrackIds={mixTrackIds} onMixUpdated={() => void notifyMixUpdated()} />
-      </div>
-
-      <footer className="app-footer">
-        <EbButton type="button" className="eb-button eb-button--secondary" onClick={() => setPsiOpen(true)}>
-          Open PSI Menu
-        </EbButton>
-        <span className="app-footer__note">PK-Tunez • Global archive dedup • Thumb-drive friendly history</span>
-      </footer>
-
-      <PsiMenu
-        open={psiOpen}
-        settings={draftSettings}
-        onClose={() => setPsiOpen(false)}
-        onChange={(partial) => setDraftSettings((prev) => ({ ...prev, ...partial }))}
-        onSave={() => void handleSaveSettings()}
-        onSetDownloadFolder={() => void handleSetDownloadFolder()}
-        onSetArchiveFile={() => void handleSetArchiveFile()}
-        onDownloadArchiveFile={() => void handleDownloadArchiveFile()}
-      />
-
-      <SessionCompleteModal open={sessionCompleteOpen} onClose={closeSessionComplete} sessions={sessions} />
-
-      <ModeConfirmModal
-        open={modeConfirmOpen}
-        pendingMode={pendingMode}
-        currentMode={mode}
-        onConfirm={confirmModeChange}
-        onCancel={cancelModeChange}
-      />
-
-      <ImpersonationTipModal open={impersonationTipOpen} onDismiss={() => void handleDismissImpersonationTip()} />
-
-      <YouTubeCookiesHintModal
-        open={youtubeCookiesHintOpen}
-        onDismiss={handleDismissYouTubeCookiesHint}
-        onOpenPsiMenu={handleOpenPsiFromYouTubeHint}
-      />
-    </div>
+    </ThemeProvider>
   )
 }

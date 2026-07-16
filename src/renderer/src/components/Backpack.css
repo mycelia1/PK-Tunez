@@ -60,7 +60,7 @@
   padding: 10px;
   border: 3px solid var(--eb-outline);
   border-radius: var(--radius-md);
-  background: #fffdf5;
+  background: var(--panel-cream);
   min-width: 0;
 }
 

@@ -46,15 +46,15 @@
 }
 
 .session-log__badge--completed {
-  background: #b8f0a0;
+  background: var(--badge-success);
 }
 
 .session-log__badge--cancelled {
-  background: #f0e0a0;
+  background: var(--badge-warn);
 }
 
 .session-log__badge--failed {
-  background: #f0a0a0;
+  background: var(--badge-error);
 }
 
 .session-log__meta-line {

@@ -1,14 +1,16 @@
-import logoUrl from '@assets/images/pktunez.png'
+import { useTheme } from '../theme/ThemeContext'
 import './TitlePanel.css'
 
 export function TitlePanel(): JSX.Element {
+  const { copy, sprites } = useTheme()
+
   return (
     <header className="title-panel eb-panel eb-panel--sky">
-      <img className="title-panel__logo" src={logoUrl} alt="PK-Tunez logo" />
+      <img className="title-panel__logo" src={sprites.logo} alt="PK-Tunez logo" />
       <div>
-        <p className="title-panel__eyebrow">SoundCloud Downloader Utility</p>
+        <p className="title-panel__eyebrow">{copy.titleEyebrow}</p>
         <h1 className="eb-title title-panel__title">PK-Tunez</h1>
-        <p className="title-panel__subtitle">Companion PC Program v1.0 • Onett Data Recovery Dept.</p>
+        <p className="title-panel__subtitle">{copy.titleSubtitle}</p>
       </div>
     </header>
   )
