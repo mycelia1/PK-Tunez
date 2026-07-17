@@ -9,7 +9,7 @@ export const UI_THEMES: UiTheme[] = ['earthbound', 'dk64']
 
 export const THEME_LABELS: Record<UiTheme, string> = {
   earthbound: 'EarthBound (SNES)',
-  dk64: 'Donkey Kong 64 (N64)'
+  dk64: 'Donkey Kong Country (SNES)'
 }
 
 /** Window / splash background colors keyed by theme (main process). */
@@ -45,7 +45,15 @@ export interface ThemeCopy {
 }
 
 export interface ThemeSprites {
+  /** Circular header badge (EarthBound) or left-side icon when no wordmark. */
   logo: string
+  /** When set, replaces the “PK-Tunez” heading text. */
+  wordmark: string | null
+  wallpaper: string | null
+  mixLab: string | null
+  backpack: string | null
+  /** Queue panel title art (e.g. banana barrel); null keeps text title. */
+  stream: string | null
   downloading: string
   complete: string
   error: string
@@ -63,7 +71,7 @@ const dk64ImageModules = {
   })
 } as Record<string, string>
 
-function resolveThemeImage(themeFolder: string, basename: string, fallback: string): string {
+function resolveOptionalThemeImage(themeFolder: string, basename: string): string | null {
   const needle = `themes/${themeFolder}/`
   const match = Object.entries(dk64ImageModules).find(([path]) => {
     const normalized = path.replace(/\\/g, '/')
@@ -71,19 +79,34 @@ function resolveThemeImage(themeFolder: string, basename: string, fallback: stri
     const file = normalized.split('/').pop() ?? ''
     return file.toLowerCase().startsWith(basename.toLowerCase())
   })
-  return match?.[1] ?? fallback
+  return match?.[1] ?? null
+}
+
+function resolveThemeImage(themeFolder: string, basename: string, fallback: string): string {
+  return resolveOptionalThemeImage(themeFolder, basename) ?? fallback
 }
 
 const EARTHBOUND_SPRITES: ThemeSprites = {
   logo: earthboundLogo,
+  wordmark: null,
+  wallpaper: null,
+  mixLab: null,
+  backpack: null,
+  stream: null,
   downloading: earthboundDownloading,
   complete: earthboundComplete,
   error: earthboundError
 }
 
-/** DK64 images live under assets/themes/dk64/ — falls back to EarthBound until you drop files in. */
+/** DK theme images live under assets/themes/dk64/ — falls back to EarthBound until you drop files in. */
 const DK64_SPRITES: ThemeSprites = {
   logo: resolveThemeImage('dk64', 'logo', earthboundLogo),
+  // Same file as logo when present — used as the title wordmark for visual testing.
+  wordmark: resolveOptionalThemeImage('dk64', 'logo'),
+  wallpaper: resolveOptionalThemeImage('dk64', 'wallpaper'),
+  mixLab: resolveOptionalThemeImage('dk64', 'mix-lab'),
+  backpack: resolveOptionalThemeImage('dk64', 'backpack'),
+  stream: resolveOptionalThemeImage('dk64', 'banana-barrel'),
   downloading: resolveThemeImage('dk64', 'downloading', earthboundDownloading),
   complete: resolveThemeImage('dk64', 'complete', earthboundComplete),
   error: resolveThemeImage('dk64', 'error', earthboundError)
@@ -122,13 +145,13 @@ export const THEME_COPY: Record<UiTheme, ThemeCopy> = {
   },
   dk64: {
     titleEyebrow: 'SoundCloud Downloader Utility',
-    titleSubtitle: 'N64 Cart Companion v1.0 • DK Isles Sound Archive',
-    signalLabel: 'Enter Banana Signal',
-    downloadButton: 'GO GO GO!',
-    downloadEngaged: 'GO GO GO! Scanning banana signal...',
-    welcomeMessage: 'Welcome! Drop a SoundCloud banana signal to begin.',
+    titleSubtitle: 'SNES Cart Companion v1.0 • DK Isles Sound Archive',
+    signalLabel: 'Load Barrel Cannon',
+    downloadButton: 'Shoot!',
+    downloadEngaged: 'Shoot! Loading the barrel cannon...',
+    welcomeMessage: 'Welcome! Load the barrel cannon with a SoundCloud link to begin.',
     streamTitle: 'Banana Barrel',
-    streamEmpty: 'Barrel empty. Enter a banana signal to begin.',
+    streamEmpty: 'Barrel empty. Load the banana barrel to begin.',
     backpackTitle: 'Banana Hoard',
     backpackHint: 'Tracks stay listed here even after you move files to a thumb drive.',
     backpackEmpty: 'The hoard is empty. Completed downloads appear here.',
@@ -139,7 +162,7 @@ export const THEME_COPY: Record<UiTheme, ThemeCopy> = {
     psiMenuSave: 'Save Settings',
     psiMenuOpen: "Open Cranky's Menu",
     settingsSaved: 'Settings saved. Nice work!',
-    sessionCompleteText: 'Banana signal fully processed. Buncha bananas!',
+    sessionCompleteText: 'More bananas in the hoard! Buncha Bananas!',
     progressLabel: 'DK',
     tipPrefix: "Cranky's Tip",
     statusWait: 'WAIT',
@@ -153,4 +176,17 @@ export function isUiTheme(value: unknown): value is UiTheme {
 
 export function applyDocumentTheme(theme: UiTheme): void {
   document.documentElement.dataset.theme = theme
+
+  const sprites = THEME_SPRITES[theme]
+  const root = document.documentElement
+
+  if (sprites.wallpaper) {
+    root.style.setProperty('--bg-image', `url("${sprites.wallpaper}")`)
+    root.style.setProperty('--bg-size', 'auto')
+    root.style.setProperty('--bg-position', '0 0')
+  } else {
+    root.style.removeProperty('--bg-image')
+    root.style.removeProperty('--bg-size')
+    root.style.removeProperty('--bg-position')
+  }
 }

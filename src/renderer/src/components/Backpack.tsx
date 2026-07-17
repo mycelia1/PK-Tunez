@@ -33,7 +33,7 @@ function itemKey(item: HistoryEntry): string {
 }
 
 export function Backpack({ items, mixTrackIds, onMixUpdated }: BackpackProps): JSX.Element {
-  const { copy } = useTheme()
+  const { copy, sprites } = useTheme()
   const [resolvedPaths, setResolvedPaths] = useState<Record<string, { exists: boolean; path: string }>>({})
   const resolvedKeys = useRef<Set<string>>(new Set())
   const [query, setQuery] = useState('')
@@ -125,7 +125,11 @@ export function Backpack({ items, mixTrackIds, onMixUpdated }: BackpackProps): J
 
   return (
     <section className="backpack eb-panel" aria-label="Download history">
-      <h2 className="eb-title backpack__title">{copy.backpackTitle}</h2>
+      {sprites.backpack ? (
+        <img className="backpack__title-art" src={sprites.backpack} alt={copy.backpackTitle} />
+      ) : (
+        <h2 className="eb-title backpack__title">{copy.backpackTitle}</h2>
+      )}
       <p className="backpack__hint">{copy.backpackHint}</p>
 
       {items.length > 0 && (

@@ -132,6 +132,32 @@ export function PsiMenu({
             <label className="psi-menu__toggle">
               <input
                 type="checkbox"
+                checked={settings.soundEnabled}
+                onChange={(event) => onChange({ soundEnabled: event.target.checked })}
+              />
+              <span>Enable retro sound effects</span>
+              <small className="psi-menu__help">
+                Session-complete jingles: EarthBound →{' '}
+                <code>src/renderer/src/assets/sfx/session-complete/</code>; DK theme →{' '}
+                <code>src/renderer/src/assets/sfx/dk64/session-complete/</code>
+              </small>
+            </label>
+
+            <label className="psi-menu__toggle">
+              <input
+                type="checkbox"
+                checked={settings.logsEnabled}
+                onChange={(event) => onChange({ logsEnabled: event.target.checked })}
+              />
+              <span>Logs</span>
+              <small className="psi-menu__help">
+                Writes full download output to a text file per session under your PK-Tunez app data folder (logs/).
+              </small>
+            </label>
+
+            <label className="psi-menu__toggle">
+              <input
+                type="checkbox"
                 checked={settings.limitTrackLength}
                 onChange={(event) => onChange({ limitTrackLength: event.target.checked })}
               />
@@ -213,32 +239,6 @@ export function PsiMenu({
               />
               <small className="psi-menu__help">
                 Caps bandwidth per download (yt-dlp --limit-rate). Applies to SoundCloud and YouTube.
-              </small>
-            </label>
-
-            <label className="psi-menu__toggle">
-              <input
-                type="checkbox"
-                checked={settings.soundEnabled}
-                onChange={(event) => onChange({ soundEnabled: event.target.checked })}
-              />
-              <span>Enable retro sound effects</span>
-              <small className="psi-menu__help">
-                Session-complete jingles: EarthBound →{' '}
-                <code>src/renderer/src/assets/sfx/session-complete/</code>; DK64 →{' '}
-                <code>src/renderer/src/assets/sfx/dk64/session-complete/</code>
-              </small>
-            </label>
-
-            <label className="psi-menu__toggle">
-              <input
-                type="checkbox"
-                checked={settings.logsEnabled}
-                onChange={(event) => onChange({ logsEnabled: event.target.checked })}
-              />
-              <span>Logs</span>
-              <small className="psi-menu__help">
-                Writes full download output to a text file per session under your PK-Tunez app data folder (logs/).
               </small>
             </label>
 

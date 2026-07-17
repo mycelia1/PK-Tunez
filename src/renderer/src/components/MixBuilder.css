@@ -32,6 +32,15 @@
   margin: 0;
 }
 
+.mix-builder__title-art {
+  display: block;
+  max-height: 48px;
+  max-width: min(280px, 55%);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
 .mix-builder__name-row {
   display: flex;
   flex-direction: column;

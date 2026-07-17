@@ -24,7 +24,7 @@ function defaultMix(): MixState {
 }
 
 export function MixBuilder({ mixVersion, onStatus, onMixUpdated }: MixBuilderProps): JSX.Element {
-  const { copy } = useTheme()
+  const { copy, sprites } = useTheme()
   const [mix, setMix] = useState<MixState>(defaultMix())
   const [draftName, setDraftName] = useState('My Mix')
   const [expanded, setExpanded] = useState(true)
@@ -169,7 +169,11 @@ export function MixBuilder({ mixVersion, onStatus, onMixUpdated }: MixBuilderPro
       aria-label="Mix builder"
     >
       <div className="mix-builder__header">
-        <h2 className="eb-title mix-builder__title">{copy.mixLabTitle}</h2>
+        {sprites.mixLab ? (
+          <img className="mix-builder__title-art" src={sprites.mixLab} alt={copy.mixLabTitle} />
+        ) : (
+          <h2 className="eb-title mix-builder__title">{copy.mixLabTitle}</h2>
+        )}
         <div className="mix-builder__header-actions">
           <EbButton
             type="button"

@@ -16,6 +16,15 @@
   margin: 0;
 }
 
+.psychic-stream__title-art {
+  display: block;
+  max-height: 48px;
+  max-width: min(280px, 55%);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
 .psychic-stream__empty {
   margin: 24px 0 0;
   font-size: 24px;

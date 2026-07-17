@@ -57,13 +57,17 @@ export function PsychicStream({
   readOnly = false,
   emptyMessage
 }: PsychicStreamProps): JSX.Element {
-  const { copy } = useTheme()
+  const { copy, sprites } = useTheme()
   const resolvedEmpty = emptyMessage ?? copy.streamEmpty
 
   return (
     <section className="psychic-stream eb-panel" aria-label="Download queue">
       <div className="psychic-stream__header">
-        <h2 className="eb-title psychic-stream__title">{copy.streamTitle}</h2>
+        {sprites.stream ? (
+          <img className="psychic-stream__title-art" src={sprites.stream} alt={copy.streamTitle} />
+        ) : (
+          <h2 className="eb-title psychic-stream__title">{copy.streamTitle}</h2>
+        )}
         {!readOnly && isBusy && onCancel && (
           <EbButton
             type="button"

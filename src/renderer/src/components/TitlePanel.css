@@ -37,3 +37,14 @@
 .title-panel__title {
   margin: 8px 0;
 }
+
+.title-panel__wordmark {
+  display: block;
+  margin: 8px 0;
+  max-height: 72px;
+  max-width: min(420px, 100%);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  image-rendering: auto;
+}

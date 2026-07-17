@@ -1,12 +1,16 @@
 import type { ButtonHTMLAttributes, MouseEvent } from 'react'
 import { playSound, unlockAudio } from '../utils/sound'
 
-type EbButtonProps = ButtonHTMLAttributes<HTMLButtonElement>
+type EbButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  /** When false, skips the default UI click SFX (e.g. download already plays confirm). */
+  playClickSound?: boolean
+}
 
 export function EbButton({
   onClick,
   onMouseEnter,
   disabled,
+  playClickSound = true,
   children,
   ...rest
 }: EbButtonProps): JSX.Element {
@@ -20,7 +24,9 @@ export function EbButton({
   const handleClick = (event: MouseEvent<HTMLButtonElement>): void => {
     if (!disabled) {
       unlockAudio()
-      playSound('click')
+      if (playClickSound) {
+        playSound('click')
+      }
     }
     onClick?.(event)
   }

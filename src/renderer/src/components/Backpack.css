@@ -10,6 +10,16 @@
   margin: 0 0 8px;
 }
 
+.backpack__title-art {
+  display: block;
+  max-height: 48px;
+  max-width: min(280px, 100%);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  margin: 0 0 8px;
+}
+
 .backpack__hint,
 .backpack__empty {
   margin: 0 0 16px;

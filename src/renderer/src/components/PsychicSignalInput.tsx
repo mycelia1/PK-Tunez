@@ -97,6 +97,7 @@ export function PsychicSignalInput({
         type="submit"
         className="eb-button psychic-signal__download"
         disabled={isBusy || !url.trim()}
+        playClickSound={false}
       >
         {copy.downloadButton}
       </EbButton>

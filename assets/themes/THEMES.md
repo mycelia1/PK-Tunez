@@ -25,7 +25,11 @@ Until these exist, DK64 **falls back** to EarthBound sprites/logo and EarthBound
 
 | Filename (stem) | Used for | Notes |
 |-----------------|----------|--------|
-| `logo.png` (or `.webp`) | Title bar logo | Suggested ~256–512px wide |
+| `logo.png` (or `.webp`) | Title wordmark (replaces “PK-Tunez” text) | Wide wordmark preferred |
+| `wallpaper.jpg` (or `.png`/`.webp`) | Repeating page background | Tiled at native size |
+| `mix-lab.png` (or `.webp`/`.gif`) | Cranky Lab / Mix Lab header | Replaces section title text |
+| `backpack.png` (or `.webp`/`.gif`) | Banana Hoard / Backpack header | Replaces section title text |
+| `banana-barrel.png` (or `.webp`/`.gif`) | Banana Barrel / queue header | Replaces section title text |
 | `downloading.gif` (or `.webp`) | Queue “in progress” sprite | Animated preferred |
 | `complete.webp` (or `.png`/`.gif`) | Queue success / already owned | Victory pose |
 | `error.webp` (or `.png`/`.gif`) | Queue error | Enemy / fail sprite |
