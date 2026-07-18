@@ -1069,6 +1069,23 @@ function onRunClose(code: number | null): void {
     return
   }
 
+  // yt-dlp / scdl can exit non-zero when some playlist items fail (unavailable,
+  // geo-blocked, etc.) even with --ignore-errors. If anything completed, treat
+  // it as a partial success so the session-complete modal still opens.
+  const counts = sessionCounts(Array.from(queue.values()))
+  const completed = Math.max(counts.completed, s.totalDownloads)
+  if (completed > 0) {
+    const failedNote =
+      counts.error > 0
+        ? ` ${counts.error} item(s) failed or were unavailable.`
+        : ' Some items could not be downloaded.'
+    finalize(
+      true,
+      `Download session complete with some issues. ${completed} track(s) downloaded.${failedNote}`
+    )
+    return
+  }
+
   finalize(false, `Download ended with code ${code ?? 'unknown'}`)
 }
 

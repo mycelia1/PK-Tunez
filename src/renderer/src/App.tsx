@@ -225,17 +225,24 @@ export default function App(): JSX.Element {
           setStatusMessage(event.message)
           setIsBusy(false)
           if (event.success) {
-            setStatusVariant('success')
-            setSessionCompleteOpen(true)
-            playLoopingSessionComplete()
+            const partial = /some issues/i.test(event.message)
+            setStatusVariant(partial ? 'info' : 'success')
+            // Refresh sessions first so the modal's partial warning sees this run's counts.
+            void (async () => {
+              await Promise.all([refreshHistory(), refreshSessions()])
+              setSessionCompleteOpen(true)
+              playLoopingSessionComplete()
+            })()
           } else if (/cancel/i.test(event.message)) {
             setStatusVariant('info')
+            void refreshHistory()
+            void refreshSessions()
           } else {
             setStatusVariant('error')
             playSound('error')
+            void refreshHistory()
+            void refreshSessions()
           }
-          void refreshHistory()
-          void refreshSessions()
           break
         default:
           break

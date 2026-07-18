@@ -15,6 +15,10 @@
   text-align: center;
 }
 
+.session-complete--partial {
+  background: var(--eb-yellow);
+}
+
 .session-complete__title {
   font-size: 16px;
   margin: 0 0 12px;
@@ -23,6 +27,12 @@
 .session-complete__text {
   margin: 0 0 18px;
   font-size: 24px;
+}
+
+.session-complete__warning {
+  margin: -8px 0 18px;
+  font-size: 18px;
+  color: var(--eb-outline);
 }
 
 .session-complete__close {

@@ -18,6 +18,10 @@ export function SessionCompleteModal({ open, onClose, sessions }: SessionComplet
 
   if (!open) return null
 
+  const latest = sessions[0]
+  const isPartial =
+    latest?.outcome === 'completed' && (latest.counts.error > 0 || /some issues/i.test(latest.statusMessage))
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault()
     onClose()
@@ -26,7 +30,7 @@ export function SessionCompleteModal({ open, onClose, sessions }: SessionComplet
   return (
     <div className="session-complete__backdrop" role="presentation" onClick={onClose}>
       <form
-        className="session-complete eb-panel"
+        className={`session-complete eb-panel${isPartial ? ' session-complete--partial' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="session-complete-title"
@@ -34,9 +38,15 @@ export function SessionCompleteModal({ open, onClose, sessions }: SessionComplet
         onSubmit={handleSubmit}
       >
         <h2 id="session-complete-title" className="eb-title session-complete__title">
-          Download session complete!
+          {isPartial ? 'Download session complete (with issues)' : 'Download session complete!'}
         </h2>
         <p className="session-complete__text">{copy.sessionCompleteText}</p>
+        {isPartial && (
+          <p className="session-complete__warning">
+            Some tracks failed or were unavailable. Check the session log below — successful downloads are still in
+            your library.
+          </p>
+        )}
         <SessionLogPanel sessions={sessions} compact />
         <EbButton type="submit" className="eb-button session-complete__close">
           Close
