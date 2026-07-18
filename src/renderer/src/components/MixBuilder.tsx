@@ -167,6 +167,7 @@ export function MixBuilder({ mixVersion, onStatus, onMixUpdated }: MixBuilderPro
     <section
       className={`mix-builder eb-panel ${expanded ? '' : 'mix-builder--collapsed'}`}
       aria-label="Mix builder"
+      data-tour="mix"
     >
       <div className="mix-builder__header">
         {sprites.mixLab ? (

@@ -124,7 +124,7 @@ export function Backpack({ items, mixTrackIds, onMixUpdated }: BackpackProps): J
   const hasMore = filtered.length > displayed.length
 
   return (
-    <section className="backpack eb-panel" aria-label="Download history">
+    <section className="backpack eb-panel" aria-label="Download history" data-tour="backpack">
       {sprites.backpack ? (
         <img className="backpack__title-art" src={sprites.backpack} alt={copy.backpackTitle} />
       ) : (

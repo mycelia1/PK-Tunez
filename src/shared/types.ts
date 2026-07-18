@@ -17,6 +17,8 @@ export interface AppSettings {
   limitTrackLength: boolean
   maxTrackLengthMinutes: number
   impersonationTipShown: boolean
+  /** When true, the first-run spotlight tutorial will not auto-open. */
+  tutorialCompleted: boolean
   /** Tracks to download per batch before a cooldown pause. 0 disables chunking. */
   chunkSize: number
   /** Seconds to wait between chunks to let SoundCloud's rate limiter cool off. */

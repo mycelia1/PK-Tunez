@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, MouseEvent } from 'react'
+import { forwardRef, type ButtonHTMLAttributes, type MouseEvent } from 'react'
 import { playSound, unlockAudio } from '../utils/sound'
 
 type EbButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -6,14 +6,10 @@ type EbButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   playClickSound?: boolean
 }
 
-export function EbButton({
-  onClick,
-  onMouseEnter,
-  disabled,
-  playClickSound = true,
-  children,
-  ...rest
-}: EbButtonProps): JSX.Element {
+export const EbButton = forwardRef<HTMLButtonElement, EbButtonProps>(function EbButton(
+  { onClick, onMouseEnter, disabled, playClickSound = true, children, ...rest },
+  ref
+) {
   const handleMouseEnter = (event: MouseEvent<HTMLButtonElement>): void => {
     if (!disabled) {
       playSound('hover')
@@ -32,8 +28,14 @@ export function EbButton({
   }
 
   return (
-    <button {...rest} disabled={disabled} onMouseEnter={handleMouseEnter} onClick={handleClick}>
+    <button
+      ref={ref}
+      {...rest}
+      disabled={disabled}
+      onMouseEnter={handleMouseEnter}
+      onClick={handleClick}
+    >
       {children}
     </button>
   )
-}
+})

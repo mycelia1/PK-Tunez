@@ -1,0 +1,73 @@
+.tutorial-tour {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+
+/* Full dim when no spotlight hole is available. */
+.tutorial-tour__scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--modal-scrim);
+  pointer-events: auto;
+}
+
+/*
+ * Spotlight cutout: the huge box-shadow dims everything outside this box.
+ * pointer-events none so clicks on the card still work; dimmer blocks via scrim
+ * only when there is no hole (see component).
+ */
+.tutorial-tour__hole {
+  position: absolute;
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 0 0 9999px var(--modal-scrim);
+  pointer-events: none;
+  outline: 3px solid var(--eb-sky, #4d8cff);
+}
+
+.tutorial-tour__card {
+  position: fixed;
+  width: min(420px, calc(100vw - 24px));
+  padding: 16px 18px;
+  background: var(--panel-cream);
+  z-index: 2;
+  pointer-events: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.tutorial-tour__meta {
+  font-size: 14px;
+  opacity: 0.75;
+  margin: 0 0 6px;
+}
+
+.tutorial-tour__title {
+  font-size: 14px;
+  margin: 0 0 10px;
+}
+
+.tutorial-tour__text {
+  margin: 0 0 10px;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.tutorial-tour__text:last-of-type {
+  margin-bottom: 14px;
+}
+
+.tutorial-tour__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tutorial-tour__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}

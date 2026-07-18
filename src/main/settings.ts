@@ -17,6 +17,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   limitTrackLength: true,
   maxTrackLengthMinutes: 60,
   impersonationTipShown: false,
+  tutorialCompleted: false,
   chunkSize: 25,
   chunkCooldownSeconds: 120,
   maxThrottleRetries: 5,
@@ -57,8 +58,13 @@ export function loadSettings(): AppSettings {
       youtubeCookiesHintShown?: boolean
     }
     delete parsed.youtubeCookiesHintShown
+    const hadTutorialFlag = Object.prototype.hasOwnProperty.call(parsed, 'tutorialCompleted')
     const merged = { ...DEFAULT_SETTINGS, ...parsed }
     merged.theme = normalizeTheme(merged.theme)
+    // Existing installs from before the tutorial feature should not be forced through it.
+    if (!hadTutorialFlag) {
+      merged.tutorialCompleted = true
+    }
     return merged
   } catch {
     return { ...DEFAULT_SETTINGS }

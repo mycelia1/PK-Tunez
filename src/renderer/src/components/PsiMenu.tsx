@@ -16,6 +16,9 @@ interface PsiMenuProps {
   onSetDownloadFolder: () => void
   onSetArchiveFile: () => void
   onDownloadArchiveFile: () => void
+  onRestartTutorial: () => void
+  /** When true, Enter does not save (e.g. spotlight tour is handling Enter). */
+  suppressEnterSave?: boolean
 }
 
 const YOUTUBE_BROWSER_OPTIONS: { value: YouTubeCookiesBrowser; label: string }[] = [
@@ -32,10 +35,12 @@ export function PsiMenu({
   onSave,
   onSetDownloadFolder,
   onSetArchiveFile,
-  onDownloadArchiveFile
+  onDownloadArchiveFile,
+  onRestartTutorial,
+  suppressEnterSave = false
 }: PsiMenuProps): JSX.Element | null {
   const { copy } = useTheme()
-  useEnterKey(open, onSave)
+  useEnterKey(open && !suppressEnterSave, onSave)
 
   useEffect(() => {
     if (!open) return
@@ -75,6 +80,7 @@ export function PsiMenu({
         role="dialog"
         aria-modal="true"
         aria-labelledby="psi-menu-title"
+        data-tour="psi-menu"
         onClick={(event) => event.stopPropagation()}
         onSubmit={handleSubmit}
       >
@@ -108,6 +114,14 @@ export function PsiMenu({
                 <code>assets/themes/THEMES.md</code>.
               </small>
             </label>
+
+            <div className="psi-menu__field">
+              <span className="eb-label">Tutorial</span>
+              <EbButton type="button" className="eb-button eb-button--secondary" onClick={onRestartTutorial}>
+                Restart tutorial
+              </EbButton>
+              <small className="psi-menu__help">Replay the first-run spotlight tour of the main controls.</small>
+            </div>
 
             <label className="psi-menu__field">
               <span className="eb-label">Download Folder</span>

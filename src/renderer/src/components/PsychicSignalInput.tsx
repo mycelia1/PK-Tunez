@@ -42,7 +42,7 @@ export function PsychicSignalInput({
   const youtubeKind = isYouTube ? classifyYouTubeUrl(url) : null
 
   return (
-    <form className="psychic-signal eb-panel" aria-label="Download input" onSubmit={handleSubmit}>
+    <form className="psychic-signal eb-panel" aria-label="Download input" data-tour="signal" onSubmit={handleSubmit}>
       <label className="eb-label psychic-signal__label" htmlFor="psychic-signal-url">
         {copy.signalLabel}
       </label>
@@ -77,7 +77,7 @@ export function PsychicSignalInput({
             : ` Every item in this ${youtubeKind} will be grabbed.`}
         </p>
       ) : (
-        <div className="psychic-signal__modes" role="radiogroup" aria-label="Download mode">
+        <div className="psychic-signal__modes" role="radiogroup" aria-label="Download mode" data-tour="modes">
           {DOWNLOAD_MODE_OPTIONS.map((option) => (
             <EbButton
               key={option.value}

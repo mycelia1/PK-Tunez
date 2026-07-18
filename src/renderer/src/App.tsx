@@ -13,6 +13,7 @@ import { PsiMenu } from './components/PsiMenu'
 import { SessionCompleteModal } from './components/SessionCompleteModal'
 import { SessionLogPanel } from './components/SessionLogPanel'
 import { TitlePanel } from './components/TitlePanel'
+import { TutorialTour } from './components/TutorialTour'
 import { ThemeProvider } from './theme/ThemeContext'
 import { THEME_COPY, applyDocumentTheme } from './theme/themes'
 import { initSound, playLoopingSessionComplete, playSound, stopLoopingSound, unlockAudio } from './utils/sound'
@@ -53,6 +54,7 @@ const defaultSettings: AppSettings = {
   limitTrackLength: true,
   maxTrackLengthMinutes: 60,
   impersonationTipShown: false,
+  tutorialCompleted: false,
   chunkSize: 25,
   chunkCooldownSeconds: 120,
   maxThrottleRetries: 5,
@@ -82,6 +84,7 @@ export default function App(): JSX.Element {
   const [sessionCompleteOpen, setSessionCompleteOpen] = useState(false)
   const [impersonationTipOpen, setImpersonationTipOpen] = useState(false)
   const [youtubeCookiesHintOpen, setYoutubeCookiesHintOpen] = useState(false)
+  const [tutorialOpen, setTutorialOpen] = useState(false)
   const [modeConfirmOpen, setModeConfirmOpen] = useState(false)
   const [pendingMode, setPendingMode] = useState<DownloadMode | null>(null)
   const [sessions, setSessions] = useState<SessionSnapshot[]>([])
@@ -132,6 +135,9 @@ export default function App(): JSX.Element {
       await refreshHistory()
       await refreshSessions()
       await notifyMixUpdated()
+      if (!loaded.tutorialCompleted) {
+        setTutorialOpen(true)
+      }
     })()
   }, [refreshHistory, refreshSessions, notifyMixUpdated])
 
@@ -208,12 +214,14 @@ export default function App(): JSX.Element {
           break
         }
         case 'impersonation-warning':
-          if (!settings.impersonationTipShown) {
+          if (!tutorialOpen && !settings.impersonationTipShown) {
             setImpersonationTipOpen(true)
           }
           break
         case 'youtube-cookies-hint':
-          setYoutubeCookiesHintOpen(true)
+          if (!tutorialOpen) {
+            setYoutubeCookiesHintOpen(true)
+          }
           break
         case 'error':
           setStatusMessage(event.message)
@@ -253,7 +261,7 @@ export default function App(): JSX.Element {
       unsubscribe()
       clearCooldownTimer()
     }
-  }, [refreshHistory, refreshSessions, settings.impersonationTipShown, clearCooldownTimer])
+  }, [refreshHistory, refreshSessions, settings.impersonationTipShown, clearCooldownTimer, tutorialOpen])
 
   const handleDownload = async (): Promise<void> => {
     if (!url.trim()) return
@@ -334,6 +342,43 @@ export default function App(): JSX.Element {
     setPsiOpen(true)
   }
 
+  const completeTutorial = useCallback(async (): Promise<void> => {
+    setTutorialOpen(false)
+    setPsiOpen(false)
+    const saved = await window.scdl.saveSettings({ tutorialCompleted: true })
+    setSettings(saved)
+    setDraftSettings((prev) => ({ ...prev, tutorialCompleted: true }))
+  }, [])
+
+  const handleTutorialFinish = (): void => {
+    void completeTutorial()
+  }
+
+  const handleTutorialSkip = (): void => {
+    void completeTutorial()
+  }
+
+  const handleRestartTutorial = (): void => {
+    setDraftSettings(settings)
+    setPsiOpen(false)
+    setTutorialOpen(true)
+    void (async () => {
+      const saved = await window.scdl.saveSettings({ tutorialCompleted: false })
+      setSettings(saved)
+      setDraftSettings((prev) => ({ ...prev, tutorialCompleted: false }))
+    })()
+  }
+
+  const handleTutorialPsiNeeded = useCallback((open: boolean): void => {
+    if (open) {
+      setDraftSettings(settings)
+      setPsiOpen(true)
+    } else {
+      setDraftSettings(settings)
+      setPsiOpen(false)
+    }
+  }, [settings])
+
   const handleSetDownloadFolder = async (): Promise<void> => {
     const picked = await window.scdl.pickFolder()
     if (picked) {
@@ -366,7 +411,7 @@ export default function App(): JSX.Element {
   return (
     <ThemeProvider theme={activeTheme}>
       <div className="app-shell">
-        <div className="app-shell__title">
+        <div className="app-shell__title" data-tour="title">
           <TitlePanel />
         </div>
 
@@ -397,7 +442,12 @@ export default function App(): JSX.Element {
         </div>
 
         <footer className="app-footer">
-          <EbButton type="button" className="eb-button eb-button--secondary" onClick={() => setPsiOpen(true)}>
+          <EbButton
+            type="button"
+            className="eb-button eb-button--secondary"
+            data-tour="psi-open"
+            onClick={() => setPsiOpen(true)}
+          >
             {THEME_COPY[activeTheme].psiMenuOpen}
           </EbButton>
           <span className="app-footer__note">PK-Tunez • Global archive dedup • Thumb-drive friendly history</span>
@@ -415,6 +465,16 @@ export default function App(): JSX.Element {
           onSetDownloadFolder={() => void handleSetDownloadFolder()}
           onSetArchiveFile={() => void handleSetArchiveFile()}
           onDownloadArchiveFile={() => void handleDownloadArchiveFile()}
+          onRestartTutorial={handleRestartTutorial}
+          suppressEnterSave={tutorialOpen}
+        />
+
+        <TutorialTour
+          open={tutorialOpen}
+          psiOpen={psiOpen}
+          onFinish={handleTutorialFinish}
+          onSkip={handleTutorialSkip}
+          onPsiNeeded={handleTutorialPsiNeeded}
         />
 
         <SessionCompleteModal open={sessionCompleteOpen} onClose={closeSessionComplete} sessions={sessions} />

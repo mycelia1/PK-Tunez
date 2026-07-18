@@ -61,7 +61,7 @@ export function PsychicStream({
   const resolvedEmpty = emptyMessage ?? copy.streamEmpty
 
   return (
-    <section className="psychic-stream eb-panel" aria-label="Download queue">
+    <section className="psychic-stream eb-panel" aria-label="Download queue" data-tour="stream">
       <div className="psychic-stream__header">
         {sprites.stream ? (
           <img className="psychic-stream__title-art" src={sprites.stream} alt={copy.streamTitle} />
