@@ -123,6 +123,14 @@ button {
   color: var(--eb-dialog-bg);
 }
 
+[data-theme='dk64'] .eb-button--secondary {
+  background: var(--btn-green);
+}
+
+[data-theme='dk64'] .eb-button--secondary:hover:not(:disabled) {
+  background: var(--btn-green-hover);
+}
+
 .eb-button--danger {
   background: var(--eb-pink);
 }

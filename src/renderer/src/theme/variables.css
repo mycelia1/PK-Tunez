@@ -71,6 +71,9 @@
   --cancel-shadow: #5c1a12;
   --modal-scrim: rgba(26, 18, 8, 0.5);
 
+  --btn-green: #228b22;
+  --btn-green-hover: #32cd32;
+
   --border-thick: 5px;
   --radius-lg: 14px;
   --radius-md: 10px;
