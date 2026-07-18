@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import type { MixState, MixTrackRef } from '../../../shared/types'
 import {
-  INVALID_WINDOWS_FILENAME_CHARS_LABEL,
-  isInvalidWindowsFilenameChar,
-  stripInvalidWindowsFilenameChars
+  INVALID_FILENAME_CHARS_LABEL,
+  isInvalidFilenameChar,
+  stripInvalidFilenameChars
 } from '../../../shared/sources'
 import { useTheme } from '../theme/ThemeContext'
 import { EbButton } from './EbButton'
 import { useEnterKey } from '../utils/useEnterKey'
 import './MixBuilder.css'
 
-const INVALID_NAME_HINT = `These characters aren't allowed in mix names: ${INVALID_WINDOWS_FILENAME_CHARS_LABEL}`
+const INVALID_NAME_HINT = `These characters aren't allowed in mix names: ${INVALID_FILENAME_CHARS_LABEL}`
 const NAME_HINT_MS = 2500
 
 interface MixBuilderProps {
@@ -74,7 +74,7 @@ export function MixBuilder({ mixVersion, onStatus, onMixUpdated }: MixBuilderPro
   }
 
   const handleDraftNameChange = (raw: string): void => {
-    const cleaned = stripInvalidWindowsFilenameChars(raw)
+    const cleaned = stripInvalidFilenameChars(raw)
     if (cleaned !== raw) {
       showInvalidNameHint()
     }
@@ -220,7 +220,7 @@ export function MixBuilder({ mixVersion, onStatus, onMixUpdated }: MixBuilderPro
               e.currentTarget.blur()
               return
             }
-            if (isInvalidWindowsFilenameChar(e.key)) {
+            if (isInvalidFilenameChar(e.key)) {
               e.preventDefault()
               showInvalidNameHint()
             }

@@ -106,22 +106,24 @@ function sanitizeSlug(value: string): string {
   return value.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'youtube'
 }
 
-/** Characters illegal in Windows file/folder names (plus ASCII control chars). */
-export const INVALID_WINDOWS_FILENAME_CHAR_REGEX = /[<>:"/\\|?*\u0000-\u001f]/g
+// We apply the strictest set of illegal filename characters (Windows' rules,
+// plus ASCII control chars) on every OS. It's a superset of what macOS/Linux
+// forbid, so names produced here stay portable across all platforms.
+export const INVALID_FILENAME_CHAR_REGEX = /[<>:"/\\|?*\u0000-\u001f]/g
 
-export const INVALID_WINDOWS_FILENAME_CHARS_LABEL = '< > : " / \\ | ? *'
+export const INVALID_FILENAME_CHARS_LABEL = '< > : " / \\ | ? *'
 
-export function stripInvalidWindowsFilenameChars(value: string): string {
-  return value.replace(INVALID_WINDOWS_FILENAME_CHAR_REGEX, '')
+export function stripInvalidFilenameChars(value: string): string {
+  return value.replace(INVALID_FILENAME_CHAR_REGEX, '')
 }
 
-export function isInvalidWindowsFilenameChar(char: string): boolean {
+export function isInvalidFilenameChar(char: string): boolean {
   return char.length === 1 && /[<>:"/\\|?*\u0000-\u001f]/.test(char)
 }
 
 /** Safe folder name for a human-readable YouTube playlist or channel title. */
 export function sanitizeFolderName(value: string): string {
-  const trimmed = stripInvalidWindowsFilenameChars(value)
+  const trimmed = stripInvalidFilenameChars(value)
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/[.\s]+$/g, '')

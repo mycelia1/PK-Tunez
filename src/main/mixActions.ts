@@ -20,7 +20,10 @@ function buildM3uContent(paths: string[]): string {
     '#EXTM3U',
     '#EXTVLCOPT:playlist-autostart=0',
     '#EXTVLCOPT:play-and-pause=0',
-    ...paths.map((p) => p.replace(/\//g, '\\'))
+    // Emit native absolute paths as-is. resolveAudioPath already returns paths
+    // with the host OS separator (backslashes on Windows, forward slashes on
+    // macOS/Linux), which every player accepts on its own platform.
+    ...paths
   ]
   return `${lines.join('\n')}\n`
 }
