@@ -59,17 +59,11 @@ export interface ThemeSprites {
   error: string
 }
 
-/** Prefer project `assets/themes/dk64/`; also scan renderer-local copy if present. */
-const dk64ImageModules = {
-  ...import.meta.glob('../../../../assets/themes/dk64/**/*.{png,webp,gif,jpg,jpeg}', {
-    eager: true,
-    import: 'default'
-  }),
-  ...import.meta.glob('../assets/themes/dk64/**/*.{png,webp,gif,jpg,jpeg}', {
-    eager: true,
-    import: 'default'
-  })
-} as Record<string, string>
+/** DK theme images live under assets/themes/dk64/. */
+const dk64ImageModules = import.meta.glob('../../../../assets/themes/dk64/**/*.{png,webp,gif,jpg,jpeg}', {
+  eager: true,
+  import: 'default'
+}) as Record<string, string>
 
 function resolveOptionalThemeImage(themeFolder: string, basename: string): string | null {
   const needle = `themes/${themeFolder}/`

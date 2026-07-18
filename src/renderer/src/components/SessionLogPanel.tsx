@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { SessionSnapshot } from '../../../shared/types'
+import { EbButton } from './EbButton'
 import { PsychicStream } from './PsychicStream'
 import './SessionLogPanel.css'
 
@@ -66,14 +67,14 @@ export function SessionLogPanel({ sessions, compact = false }: SessionLogPanelPr
             </option>
           ))}
         </select>
-        <button
+        <EbButton
           type="button"
           className="eb-button eb-button--secondary session-log__expand"
           aria-expanded={expanded}
           onClick={() => setExpanded((open) => !open)}
         >
           {expanded ? 'Hide snapshot' : 'View snapshot'}
-        </button>
+        </EbButton>
       </div>
 
       {selected && expanded && (
