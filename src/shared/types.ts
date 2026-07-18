@@ -133,7 +133,23 @@ export type ScdlEvent =
   | { type: 'impersonation-warning' }
   | { type: 'youtube-cookies-hint' }
 
+/** Host OS as reported by Node's `process.platform`, forwarded to the renderer. */
+export type HostPlatform =
+  | 'aix'
+  | 'android'
+  | 'darwin'
+  | 'freebsd'
+  | 'haiku'
+  | 'linux'
+  | 'openbsd'
+  | 'sunos'
+  | 'win32'
+  | 'cygwin'
+  | 'netbsd'
+
 export interface ScdlApi {
+  /** Host OS, forwarded from the main process (e.g. 'win32', 'darwin', 'linux'). */
+  platform: HostPlatform
   startDownload: (request: DownloadRequest) => Promise<{ ok: boolean; error?: string }>
   cancelDownload: () => Promise<void>
   getSettings: () => Promise<AppSettings>

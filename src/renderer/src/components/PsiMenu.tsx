@@ -50,6 +50,14 @@ export function PsiMenu({
 
   if (!open) return null
 
+  const platform = window.scdl.platform
+  const cookieBrowserHelp =
+    platform === 'win32'
+      ? 'Firefox works best on Windows. Chrome and Edge lock their cookie database and usually fail with a “Could not copy cookie database” error, even when closed.'
+      : platform === 'darwin'
+        ? 'Firefox works best on macOS. Chromium browsers (Chrome, Edge, Brave) prompt for Keychain access and often fail to export cookies; Safari cookies aren’t supported.'
+        : 'Firefox works best. Chromium browsers often lock their cookie database and fail to export cookies.'
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault()
     onSave()
@@ -385,9 +393,7 @@ export function PsiMenu({
                     ))}
                   </select>
                   <small className="psi-menu__help">
-                    Pick the browser where you are signed in to YouTube. <strong>Firefox works best on Windows.</strong>{' '}
-                    Chrome and Edge lock their cookie database and usually fail with a &ldquo;Could not copy cookie
-                    database&rdquo; error, even when closed.
+                    Pick the browser where you are signed in to YouTube. {cookieBrowserHelp}
                   </small>
                 </label>
               </div>

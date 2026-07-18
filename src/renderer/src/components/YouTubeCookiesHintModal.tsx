@@ -20,6 +20,14 @@ export function YouTubeCookiesHintModal({
 
   if (!open) return null
 
+  const platform = window.scdl.platform
+  const browserAdvice =
+    platform === 'win32'
+      ? 'on Windows, Chrome and Edge usually fail with a “Could not copy cookie database” error, even when closed.'
+      : platform === 'darwin'
+        ? 'on macOS, Chromium browsers (Chrome, Edge, Brave) prompt for Keychain access and often fail to export cookies, and Safari cookies aren’t supported.'
+        : 'it exports cookies most reliably; Chromium browsers often lock their cookie database.'
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault()
     onDismiss()
@@ -44,8 +52,7 @@ export function YouTubeCookiesHintModal({
         </p>
         <ol className="youtube-cookies-hint__steps">
           <li>
-            Use <strong>Firefox</strong> — on Windows, Chrome and Edge usually fail with a &ldquo;Could not copy cookie
-            database&rdquo; error, even when closed.
+            Use <strong>Firefox</strong> — {browserAdvice}
           </li>
           <li>Sign in to YouTube in Firefox and confirm the video plays there.</li>
           <li>

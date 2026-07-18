@@ -3,6 +3,7 @@ import { IPC } from '../shared/ipc'
 import type { AppSettings, DownloadRequest, ScdlEvent, MixState } from '../shared/types'
 
 const api = {
+  platform: process.platform,
   startDownload: (request: DownloadRequest) => ipcRenderer.invoke(IPC.START_DOWNLOAD, request),
   cancelDownload: () => ipcRenderer.invoke(IPC.CANCEL_DOWNLOAD),
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke(IPC.GET_SETTINGS),
