@@ -353,11 +353,18 @@ function persistSessionSnapshot(s: DownloadSession, success: boolean, message: s
   })
 }
 
+function normalizeOffset(offset: number | undefined): number | null {
+  if (offset === undefined || offset === null) return null
+  const n = Math.floor(Number(offset))
+  return Number.isFinite(n) && n >= 1 ? n : null
+}
+
 function buildArgs(request: DownloadRequest): string[] {
   const settings = loadSettings()
   ensureArchiveFile(settings.archivePath)
 
   const outputPath = resolveOutputPath(request, settings)
+  const offset = normalizeOffset(request.offset)
 
   const args = [
     '-l',
@@ -374,6 +381,11 @@ function buildArgs(request: DownloadRequest): string[] {
     '--yt-dlp-args',
     buildYtDlpArgs(settings)
   ]
+
+  // scdl -o N → yt-dlp --playlist-items N: (skip enumeration of items 1..N-1).
+  if (offset !== null) {
+    args.push('-o', String(offset))
+  }
 
   if (settings.clientId.trim()) {
     args.push('--client-id', settings.clientId.trim())

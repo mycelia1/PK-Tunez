@@ -8,12 +8,11 @@ const outDir = join(__dirname, '../src/renderer/src/assets/sfx')
 const files = [
   'ui-hover.wav',
   'ui-click.wav',
-  'blip.wav',
+  'complete-skip.wav',
+  'complete.wav',
   'confirm.wav',
   'start.wav',
-  'complete.wav',
-  'success.wav',
-  'session-complete.wav'
+  'success.wav'
 ]
 
 function createSilentWav(durationMs = 80) {

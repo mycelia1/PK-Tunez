@@ -71,6 +71,7 @@ const defaultSettings: AppSettings = {
 export default function App(): JSX.Element {
   const [url, setUrl] = useState('')
   const [mode, setMode] = useState<DownloadMode>(DEFAULT_DOWNLOAD_MODE)
+  const [offset, setOffset] = useState('')
   const [queue, setQueue] = useState<QueueItem[]>([])
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [settings, setSettings] = useState<AppSettings>(defaultSettings)
@@ -118,7 +119,8 @@ export default function App(): JSX.Element {
   const setMixStatus = useCallback((message: string, variant: 'info' | 'success' | 'error') => {
     setStatusMessage(message)
     setStatusVariant(variant)
-    if (variant === 'success') playSound('success')
+    // Mix success only fires on Export mix, which uses the distinct "complete" chime.
+    if (variant === 'success') playSound('complete')
     if (variant === 'error') playSound('error')
   }, [])
 
@@ -173,11 +175,11 @@ export default function App(): JSX.Element {
           playSound('start')
           break
         case 'track-complete':
-          playSound('complete')
+          playSound('completeSkip')
           void refreshHistory()
           break
         case 'track-skipped':
-          playSound('blip')
+          playSound('completeSkip')
           break
         case 'track-error':
           setStatusMessage(event.message)
@@ -273,7 +275,12 @@ export default function App(): JSX.Element {
     playSound('confirm')
     unlockAudio()
 
-    const result = await window.scdl.startDownload({ url: url.trim(), mode })
+    const parsedOffset = Math.floor(Number(offset))
+    const result = await window.scdl.startDownload({
+      url: url.trim(),
+      mode,
+      ...(Number.isFinite(parsedOffset) && parsedOffset >= 1 ? { offset: parsedOffset } : {})
+    })
     if (!result.ok) {
       setIsBusy(false)
       setStatusMessage(result.error ?? 'Failed to start download.')
@@ -323,7 +330,7 @@ export default function App(): JSX.Element {
     setPsiOpen(false)
     setStatusMessage(THEME_COPY[saved.theme].settingsSaved)
     setStatusVariant('success')
-    playSound('success')
+    playSound('complete')
   }
 
   const handleDismissImpersonationTip = async (): Promise<void> => {
@@ -419,9 +426,11 @@ export default function App(): JSX.Element {
           <PsychicSignalInput
             url={url}
             mode={mode}
+            offset={offset}
             isBusy={isBusy}
             onUrlChange={setUrl}
             onModeChange={handleModeChange}
+            onOffsetChange={setOffset}
             onDownload={() => void handleDownload()}
           />
           <DialogueBox message={statusMessage} variant={statusVariant} />

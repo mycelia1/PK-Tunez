@@ -71,6 +71,24 @@
   line-height: 1.4;
 }
 
+.psychic-signal__offset {
+  display: grid;
+  gap: 6px;
+  justify-self: start;
+  max-width: 420px;
+}
+
+.psychic-signal__offset-input {
+  width: 100%;
+  max-width: 220px;
+}
+
+.psychic-signal__offset-hint {
+  font-size: 14px;
+  color: var(--eb-muted);
+  line-height: 1.35;
+}
+
 .psychic-signal__download {
   justify-self: start;
 }

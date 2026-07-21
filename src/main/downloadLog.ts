@@ -18,11 +18,16 @@ export function createSessionLogFile(
     mkdirSync(dir, { recursive: true })
   }
   const path = join(dir, `session-${startedAt}.log`)
+  const offset =
+    typeof request.offset === 'number' && Number.isFinite(request.offset) && request.offset >= 1
+      ? String(Math.floor(request.offset))
+      : null
   const header = [
     'PK-Tunez download log',
     `Started: ${new Date(startedAt).toISOString()}`,
     `URL: ${request.url}`,
     `Mode: ${request.mode}`,
+    ...(offset ? [`Offset: ${offset}`] : []),
     `Command: ${command} ${args.join(' ')}`,
     '',
     '--- output ---',

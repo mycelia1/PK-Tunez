@@ -197,11 +197,11 @@ Custom sounds live in `src/renderer/src/assets/sfx/`:
 |------|------------|
 | `ui-hover.wav` | Hovering any button |
 | `ui-click.wav` | Pressing any button |
-| `blip.wav` | Track skipped |
+| `complete-skip.wav` | Track skipped **and** single track finishes |
+| `complete.wav` | Export mix and Save settings |
 | `confirm.wav` | PK DOWNLOAD starts |
 | `start.wav` | Track download begins |
-| `complete.wav` | Single track finishes |
-| `success.wav` | Settings saved and minor wins |
+| `success.wav` | Other minor wins (e.g. archive copy saved) |
 | `session-complete/*.wav` | Randomized rotation of session-complete popup jingles (loops until closed) |
 | `error.wav` | Errors |
 

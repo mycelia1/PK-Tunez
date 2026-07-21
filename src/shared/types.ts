@@ -68,6 +68,11 @@ export interface QueueItem {
 export interface DownloadRequest {
   url: string
   mode: DownloadMode
+  /**
+   * 1-based playlist/list index to start from (scdl `-o` → yt-dlp `--playlist-items N:`).
+   * SoundCloud only. Omit or leave unset to start from the beginning.
+   */
+  offset?: number
 }
 
 export type SessionOutcome = 'completed' | 'cancelled' | 'failed'

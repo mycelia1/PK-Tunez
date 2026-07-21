@@ -1,15 +1,23 @@
 import type { UiTheme } from '../../../shared/types'
 
-import blipUrl from '../assets/sfx/blip.wav'
 import clickUrl from '../assets/sfx/ui-click.wav'
 import completeUrl from '../assets/sfx/complete.wav'
+import completeSkipUrl from '../assets/sfx/complete-skip.wav'
 import confirmUrl from '../assets/sfx/confirm.wav'
 import errorUrl from '../assets/sfx/error.wav'
 import hoverUrl from '../assets/sfx/ui-hover.wav'
 import startUrl from '../assets/sfx/start.wav'
 import successUrl from '../assets/sfx/success.wav'
 
-export type SoundName = 'hover' | 'click' | 'blip' | 'confirm' | 'start' | 'complete' | 'success' | 'error'
+export type SoundName =
+  | 'hover'
+  | 'click'
+  | 'completeSkip'
+  | 'confirm'
+  | 'start'
+  | 'complete'
+  | 'success'
+  | 'error'
 
 const SESSION_COMPLETE_QUEUE_KEY = 'pk-tunez-session-complete-queue'
 
@@ -43,9 +51,11 @@ const SESSION_COMPLETE_BY_THEME: Record<UiTheme, string[]> = {
 const EARTHBOUND_WAV: Record<SoundName, string> = {
   hover: hoverUrl,
   click: clickUrl,
-  blip: blipUrl,
+  // Shared chime for track skip + track finish (complete-skip.wav).
+  completeSkip: completeSkipUrl,
   confirm: confirmUrl,
   start: startUrl,
+  // Distinct "task done" chime — only Export mix + Save settings (complete.wav).
   complete: completeUrl,
   success: successUrl,
   error: errorUrl
@@ -55,7 +65,7 @@ const EARTHBOUND_WAV: Record<SoundName, string> = {
 const DK64_SFX_STEMS: Record<SoundName, string[]> = {
   hover: ['ui-hover', 'hover'],
   click: ['ui-click', 'click'],
-  blip: ['blip'],
+  completeSkip: ['complete-skip', 'blip'],
   confirm: ['confirm'],
   start: ['start'],
   complete: ['complete'],
@@ -77,7 +87,7 @@ function wavSourcesForTheme(theme: UiTheme): Record<SoundName, string> {
     return {
       hover: resolveDk64Sfx('hover'),
       click: resolveDk64Sfx('click'),
-      blip: resolveDk64Sfx('blip'),
+      completeSkip: resolveDk64Sfx('completeSkip'),
       confirm: resolveDk64Sfx('confirm'),
       start: resolveDk64Sfx('start'),
       complete: resolveDk64Sfx('complete'),
@@ -94,10 +104,10 @@ const SESSION_COMPLETE_VOLUME = 0.75
 const VOLUME: Record<SoundName, number> = {
   hover: 0.35,
   click: 0.45,
-  blip: 0.5,
+  completeSkip: 0.6,
   confirm: 0.65,
   start: 0.6,
-  complete: 0.65,
+  complete: 0.7,
   success: 0.7,
   error: 0.7
 }
@@ -163,7 +173,7 @@ function playSequence(notes: Array<{ freq: number; ms: number; type?: Oscillator
 const synthesizedFallback: Record<SoundName, () => void> = {
   hover: () => playTone(920, 40),
   click: () => playTone(740, 55),
-  blip: () => playTone(880, 60),
+  completeSkip: () => playTone(880, 60),
   confirm: () =>
     playSequence([
       { freq: 660, ms: 70 },

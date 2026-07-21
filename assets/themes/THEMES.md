@@ -12,7 +12,7 @@ Toggle in **PSI Menu / Cranky's Menu → Theme**. Colors and copy swap immediate
 |------|----------|
 | Logo | `assets/images/pktunez.png` |
 | Sprites | `assets/images/sprites/nesswalking.gif`, `nesspeacesign.webp`, `struttinevilmushroom1.webp` |
-| Core SFX | `src/renderer/src/assets/sfx/*.wav` |
+| Core SFX | `src/renderer/src/assets/sfx/*.wav` (shared skip/finish: `complete-skip.wav`) |
 | Session-complete music | `src/renderer/src/assets/sfx/session-complete/*.{wav,mp3}` |
 
 ---
@@ -47,14 +47,16 @@ Optional later:
 |----------|---------|
 | `ui-hover.wav` | Button hover |
 | `ui-click.wav` | Button click |
-| `blip.wav` | Track skipped |
+| `complete-skip.wav` | Track skipped **and** track finished |
+| `complete.wav` | Export mix and Save settings |
 | `confirm.wav` | Download started |
 | `start.wav` | Track starts |
-| `complete.wav` | Track finished |
-| `success.wav` | Settings saved / success |
+| `success.wav` | Other minor wins (e.g. archive copy saved) |
 | `error.wav` | Errors |
 
 `.mp3` also accepted. Missing files fall back to the EarthBound WAVs.
+
+**`complete-skip.wav` vs `complete.wav`:** the shared `complete-skip.wav` covers both the skip and track-finish queue events, while the distinct `complete.wav` is reserved for the Export mix / Save settings buttons. If a theme omits `complete-skip.wav`, it falls back to `blip.wav`, then to the EarthBound shared chime.
 
 ### Session-complete music — `src/renderer/src/assets/sfx/dk64/session-complete/`
 

@@ -85,8 +85,11 @@ export function SessionLogPanel({ sessions, compact = false }: SessionLogPanelPr
             </span>
             <span className="session-log__meta-line">{sessionSummary(selected)}</span>
             <span className="session-log__meta-line session-log__meta-line--muted">
-              {selected.source === 'youtube' ? 'YouTube' : 'SoundCloud'} · {selected.request.mode} ·{' '}
-              {formatWhen(selected.startedAt)}
+              {selected.source === 'youtube' ? 'YouTube' : 'SoundCloud'} · {selected.request.mode}
+              {selected.request.offset != null && selected.request.offset >= 1
+                ? ` · start #${selected.request.offset}`
+                : ''}{' '}
+              · {formatWhen(selected.startedAt)}
             </span>
             <p className={`session-log__status session-log__status--${selected.statusVariant}`}>
               {selected.statusMessage}
