@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AppSettings, DownloadMode, HistoryEntry, MixState, QueueItem, ScdlEvent, SessionSnapshot } from '../../shared/types'
+import type { AppSettings, DownloadMode, HistoryEntry, MixMembershipSummary, QueueItem, ScdlEvent, SessionSnapshot } from '../../shared/types'
 import { DialogueBox } from './components/DialogueBox'
 import { EbButton } from './components/EbButton'
 import { ImpersonationTipModal } from './components/ImpersonationTipModal'
@@ -89,7 +89,7 @@ export default function App(): JSX.Element {
   const [modeConfirmOpen, setModeConfirmOpen] = useState(false)
   const [pendingMode, setPendingMode] = useState<DownloadMode | null>(null)
   const [sessions, setSessions] = useState<SessionSnapshot[]>([])
-  const [mixTrackIds, setMixTrackIds] = useState<Set<string>>(new Set())
+  const [mixSummaries, setMixSummaries] = useState<MixMembershipSummary[]>([])
   const [mixVersion, setMixVersion] = useState(0)
   const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -111,8 +111,14 @@ export default function App(): JSX.Element {
   }, [])
 
   const notifyMixUpdated = useCallback(async () => {
-    const mix: MixState | null = await window.scdl.getMix()
-    setMixTrackIds(new Set(mix?.tracks.map((track) => track.trackId) ?? []))
+    const library = await window.scdl.getMixes()
+    setMixSummaries(
+      library.mixes.map((mix) => ({
+        id: mix.id,
+        name: mix.name,
+        trackIds: mix.tracks.map((track) => track.trackId)
+      }))
+    )
     setMixVersion((n) => n + 1)
   }, [])
 
@@ -447,7 +453,7 @@ export default function App(): JSX.Element {
         </div>
 
         <div className="app-shell__backpack">
-          <Backpack items={history} mixTrackIds={mixTrackIds} onMixUpdated={() => void notifyMixUpdated()} />
+          <Backpack items={history} mixes={mixSummaries} onMixUpdated={() => void notifyMixUpdated()} />
         </div>
 
         <footer className="app-footer">

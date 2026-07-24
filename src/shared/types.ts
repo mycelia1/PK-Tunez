@@ -103,9 +103,24 @@ export interface MixTrackRef {
 }
 
 export interface MixState {
+  /** Stable id for multi-mix library membership and IPC targeting. */
+  id: string
   name: string
   folderSlug: string
   tracks: MixTrackRef[]
+}
+
+/** Persisted multi-mix library (mixes.json). Always has at least one mix. */
+export interface MixLibrary {
+  mixes: MixState[]
+  activeMixId: string
+}
+
+/** Lightweight mix membership info for Backpack checklists. */
+export interface MixMembershipSummary {
+  id: string
+  name: string
+  trackIds: string[]
 }
 
 export interface MixExportResult {
@@ -175,11 +190,14 @@ export interface ScdlApi {
   openInDefaultPlayer: (filePath: string) => Promise<{ ok: boolean; error?: string }>
   openFolder: (folderPath: string) => Promise<{ ok: boolean; error?: string }>
   getSessions: () => Promise<SessionSnapshot[]>
-  getMix: () => Promise<MixState | null>
+  getMixes: () => Promise<MixLibrary>
+  getMix: (mixId?: string) => Promise<MixState | null>
   saveMix: (mix: MixState) => Promise<MixState>
-  clearMix: () => Promise<void>
-  openMixPlaylist: () => Promise<{ ok: boolean; error?: string }>
-  exportMix: () => Promise<MixExportResult>
+  createMix: (name?: string) => Promise<MixLibrary>
+  deleteMix: (mixId: string) => Promise<MixLibrary>
+  setActiveMix: (mixId: string) => Promise<MixLibrary>
+  openMixPlaylist: (mixId?: string) => Promise<{ ok: boolean; error?: string }>
+  exportMix: (mixId?: string) => Promise<MixExportResult>
   onEvent: (callback: (event: ScdlEvent) => void) => () => void
 }
 

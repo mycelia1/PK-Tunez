@@ -12,9 +12,12 @@ export const IPC = {
   DOWNLOAD_ARCHIVE_FILE: 'scdl:download-archive-file',
   RESOLVE_AUDIO_PATH: 'scdl:resolve-audio-path',
   GET_SESSIONS: 'scdl:get-sessions',
+  GET_MIXES: 'scdl:get-mixes',
   GET_MIX: 'scdl:get-mix',
   SAVE_MIX: 'scdl:save-mix',
-  CLEAR_MIX: 'scdl:clear-mix',
+  CREATE_MIX: 'scdl:create-mix',
+  DELETE_MIX: 'scdl:delete-mix',
+  SET_ACTIVE_MIX: 'scdl:set-active-mix',
   OPEN_MIX_PLAYLIST: 'scdl:open-mix-playlist',
   EXPORT_MIX: 'scdl:export-mix',
   EVENT: 'scdl:event'

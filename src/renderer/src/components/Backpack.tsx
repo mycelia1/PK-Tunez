@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { HistoryEntry } from '../../../shared/types'
+import type { HistoryEntry, MixMembershipSummary, MixState } from '../../../shared/types'
 import { useTheme } from '../theme/ThemeContext'
 import { EbButton } from './EbButton'
 import './Backpack.css'
 
 interface BackpackProps {
   items: HistoryEntry[]
-  mixTrackIds: Set<string>
+  mixes: MixMembershipSummary[]
   onMixUpdated: () => void
 }
 
@@ -32,12 +32,14 @@ function itemKey(item: HistoryEntry): string {
   return `${item.trackId}-${item.ts}-${item.filePath}`
 }
 
-export function Backpack({ items, mixTrackIds, onMixUpdated }: BackpackProps): JSX.Element {
+export function Backpack({ items, mixes, onMixUpdated }: BackpackProps): JSX.Element {
   const { copy, sprites } = useTheme()
   const [resolvedPaths, setResolvedPaths] = useState<Record<string, { exists: boolean; path: string }>>({})
   const resolvedKeys = useRef<Set<string>>(new Set())
   const [query, setQuery] = useState('')
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const [menuKey, setMenuKey] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
 
   // Precompute a lowercase haystack (title + artist + filename) per item so
   // typing any partial substring — e.g. "bem" inside "Passo Bem Solto" — matches.
@@ -94,6 +96,26 @@ export function Backpack({ items, mixTrackIds, onMixUpdated }: BackpackProps): J
     }
   }, [displayed])
 
+  useEffect(() => {
+    if (!menuKey) return
+
+    const onPointerDown = (event: MouseEvent): void => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuKey(null)
+      }
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setMenuKey(null)
+    }
+
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [menuKey])
+
   const handlePlay = async (key: string, filePath: string): Promise<void> => {
     const result = await window.scdl.openInDefaultPlayer(filePath)
     if (!result.ok) {
@@ -101,22 +123,43 @@ export function Backpack({ items, mixTrackIds, onMixUpdated }: BackpackProps): J
     }
   }
 
-  const handleAddToMix = async (item: HistoryEntry, resolvedPath: string): Promise<void> => {
-    const mix = (await window.scdl.getMix()) ?? { name: 'My Mix', folderSlug: 'My Mix', tracks: [] }
-    if (mix.tracks.some((t) => t.trackId === item.trackId)) return
+  const membershipCount = (trackId: string): number =>
+    mixes.filter((mix) => mix.trackIds.includes(trackId)).length
 
-    await window.scdl.saveMix({
-      ...mix,
-      tracks: [
-        ...mix.tracks,
-        {
-          trackId: item.trackId,
-          title: item.title,
-          artist: item.artist,
-          filePath: resolvedPath
-        }
-      ]
-    })
+  const toggleMixMembership = async (
+    item: HistoryEntry,
+    mixId: string,
+    resolvedPath: string,
+    shouldInclude: boolean
+  ): Promise<void> => {
+    const mix = await window.scdl.getMix(mixId)
+    if (!mix) return
+
+    const alreadyIn = mix.tracks.some((t) => t.trackId === item.trackId)
+    let next: MixState
+    if (shouldInclude) {
+      if (alreadyIn) return
+      next = {
+        ...mix,
+        tracks: [
+          ...mix.tracks,
+          {
+            trackId: item.trackId,
+            title: item.title,
+            artist: item.artist,
+            filePath: resolvedPath
+          }
+        ]
+      }
+    } else {
+      if (!alreadyIn) return
+      next = {
+        ...mix,
+        tracks: mix.tracks.filter((t) => t.trackId !== item.trackId)
+      }
+    }
+
+    await window.scdl.saveMix(next)
     onMixUpdated()
   }
 
@@ -161,6 +204,8 @@ export function Backpack({ items, mixTrackIds, onMixUpdated }: BackpackProps): J
               const key = itemKey(item)
               const resolved = resolvedPaths[key]
               const canPlay = resolved?.exists === true
+              const inCount = membershipCount(item.trackId)
+              const menuOpen = menuKey === key
 
               return (
                 <li key={key} className="backpack__item">
@@ -183,20 +228,57 @@ export function Backpack({ items, mixTrackIds, onMixUpdated }: BackpackProps): J
                         Play
                       </EbButton>
                     )}
-                    {canPlay &&
-                      (mixTrackIds.has(item.trackId) ? (
-                        <EbButton type="button" className="eb-button backpack__in-mix" disabled>
-                          In mix
-                        </EbButton>
-                      ) : (
+                    {canPlay && (
+                      <div className="backpack__mix-wrap" ref={menuOpen ? menuRef : undefined}>
                         <EbButton
                           type="button"
-                          className="eb-button backpack__add-mix"
-                          onClick={() => void handleAddToMix(item, resolved.path)}
+                          className={`eb-button backpack__add-mix${inCount > 0 ? ' eb-button--secondary' : ''}`}
+                          aria-expanded={menuOpen}
+                          aria-haspopup="dialog"
+                          onClick={() => setMenuKey(menuOpen ? null : key)}
                         >
-                          Add to mix
+                          {inCount > 0
+                            ? `In ${inCount} mix${inCount === 1 ? '' : 'es'}`
+                            : 'Add to mix'}
                         </EbButton>
-                      ))}
+                        {menuOpen && (
+                          <div
+                            className="backpack__mix-menu"
+                            role="dialog"
+                            aria-label={`Add ${item.title} to mixes`}
+                          >
+                            {mixes.length === 0 ? (
+                              <p className="backpack__mix-menu-empty">No mixes yet.</p>
+                            ) : (
+                              <ul className="backpack__mix-menu-list">
+                                {mixes.map((mix) => {
+                                  const checked = mix.trackIds.includes(item.trackId)
+                                  return (
+                                    <li key={mix.id} className="backpack__mix-menu-item">
+                                      <label className="backpack__mix-menu-label">
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          onChange={(event) =>
+                                            void toggleMixMembership(
+                                              item,
+                                              mix.id,
+                                              resolved.path,
+                                              event.target.checked
+                                            )
+                                          }
+                                        />
+                                        <span className="backpack__mix-menu-name">{mix.name}</span>
+                                      </label>
+                                    </li>
+                                  )
+                                })}
+                              </ul>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </li>
               )

@@ -81,7 +81,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'backpack',
     title: 'Backpack (downloaded tracks)',
     body: [
-      'Completed tracks land in the Backpack history. You can open files in your default player and add them to a mix.',
+      'Completed tracks land in the Backpack history. You can open files in your default player and add them to one or more mixes.',
       'Entries stay listed even after you move files (for example to a thumb drive) — handy for tracking what you already grabbed.'
     ],
     target: 'backpack'
@@ -90,7 +90,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'mix',
     title: 'Mix Lab (playlist / mix builder)',
     body: [
-      'Build a mix from Backpack tracks, drag to reorder, then launch an .m3u playlist or export a numbered folder copy.',
+      'Build mixes from Backpack tracks — a track can belong to several mixes. Drag to reorder, then launch an .m3u playlist or export a numbered folder copy.',
       'Export writes copies into a subfolder called mixes under your download directory so the original files stay put.'
     ],
     target: 'mix'

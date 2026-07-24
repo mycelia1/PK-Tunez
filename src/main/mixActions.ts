@@ -4,8 +4,17 @@ import { tmpdir } from 'os'
 import { shell } from 'electron'
 import { loadSettings } from './settings'
 import { resolveAudioPath } from './resolveAudioPath'
-import { clearMix, loadMix, mixExportDir, saveMix } from './mixes'
-import type { MixExportResult, MixState } from '../shared/types'
+import {
+  createMix,
+  deleteMix,
+  getActiveMix,
+  getMix,
+  loadLibrary,
+  mixExportDir,
+  setActiveMix,
+  upsertMix
+} from './mixes'
+import type { MixExportResult, MixLibrary, MixState } from '../shared/types'
 
 let lastM3uPath: string | null = null
 
@@ -60,20 +69,37 @@ function clearExportDir(exportDir: string): void {
   }
 }
 
-export function getMixState(): MixState | null {
-  return loadMix()
+function resolveTargetMix(mixId?: string): MixState | null {
+  if (mixId?.trim()) return getMix(mixId)
+  return getActiveMix()
+}
+
+export function getMixLibrary(): MixLibrary {
+  return loadLibrary()
+}
+
+export function getMixState(mixId?: string): MixState | null {
+  return getMix(mixId)
 }
 
 export function saveMixState(mix: MixState): MixState {
-  return saveMix(mix)
+  return upsertMix(mix)
 }
 
-export function clearMixState(): void {
-  clearMix()
+export function createMixState(name?: string): MixLibrary {
+  return createMix(name)
 }
 
-export async function openMixPlaylist(): Promise<{ ok: boolean; error?: string }> {
-  const mix = loadMix()
+export function deleteMixState(mixId: string): MixLibrary {
+  return deleteMix(mixId)
+}
+
+export function setActiveMixState(mixId: string): MixLibrary {
+  return setActiveMix(mixId)
+}
+
+export async function openMixPlaylist(mixId?: string): Promise<{ ok: boolean; error?: string }> {
+  const mix = resolveTargetMix(mixId)
   if (!mix || mix.tracks.length === 0) {
     return { ok: false, error: 'No tracks in the current mix.' }
   }
@@ -97,7 +123,7 @@ export async function openMixPlaylist(): Promise<{ ok: boolean; error?: string }
   }
 
   const slug = mix.folderSlug || 'pk-tunez-mix'
-  const m3uPath = join(tmpdir(), `pk-tunez-${slug}.m3u`)
+  const m3uPath = join(tmpdir(), `pk-tunez-${slug}-${mix.id.slice(0, 8)}.m3u`)
   writeFileSync(m3uPath, buildM3uContent(paths), 'utf8')
   lastM3uPath = m3uPath
 
@@ -108,8 +134,8 @@ export async function openMixPlaylist(): Promise<{ ok: boolean; error?: string }
   return { ok: true }
 }
 
-export function exportMixCopy(): MixExportResult {
-  const mix = loadMix()
+export function exportMixCopy(mixId?: string): MixExportResult {
+  const mix = resolveTargetMix(mixId)
   if (!mix || mix.tracks.length === 0) {
     return { ok: false, copied: 0, skipped: 0, exportDir: '', skippedTitles: [], error: 'No tracks in mix.' }
   }

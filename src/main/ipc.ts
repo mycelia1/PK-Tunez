@@ -7,11 +7,14 @@ import { ensureArchiveFile, loadSettings, saveSettings } from './settings'
 import { resolveAudioPath } from './resolveAudioPath'
 import { loadSessions } from './sessionLog'
 import {
-  clearMixState,
+  createMixState,
+  deleteMixState,
   exportMixCopy,
+  getMixLibrary,
   getMixState,
   openMixPlaylist,
-  saveMixState
+  saveMixState,
+  setActiveMixState
 } from './mixActions'
 import { IPC } from '../shared/ipc'
 import type { AppSettings, DownloadRequest, MixState } from '../shared/types'
@@ -37,17 +40,21 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC.GET_SESSIONS, () => loadSessions())
 
-  ipcMain.handle(IPC.GET_MIX, () => getMixState())
+  ipcMain.handle(IPC.GET_MIXES, () => getMixLibrary())
+
+  ipcMain.handle(IPC.GET_MIX, (_event, mixId?: string) => getMixState(mixId))
 
   ipcMain.handle(IPC.SAVE_MIX, (_event, mix: MixState) => saveMixState(mix))
 
-  ipcMain.handle(IPC.CLEAR_MIX, () => {
-    clearMixState()
-  })
+  ipcMain.handle(IPC.CREATE_MIX, (_event, name?: string) => createMixState(name))
 
-  ipcMain.handle(IPC.OPEN_MIX_PLAYLIST, () => openMixPlaylist())
+  ipcMain.handle(IPC.DELETE_MIX, (_event, mixId: string) => deleteMixState(mixId))
 
-  ipcMain.handle(IPC.EXPORT_MIX, () => exportMixCopy())
+  ipcMain.handle(IPC.SET_ACTIVE_MIX, (_event, mixId: string) => setActiveMixState(mixId))
+
+  ipcMain.handle(IPC.OPEN_MIX_PLAYLIST, (_event, mixId?: string) => openMixPlaylist(mixId))
+
+  ipcMain.handle(IPC.EXPORT_MIX, (_event, mixId?: string) => exportMixCopy(mixId))
 
   ipcMain.handle(IPC.PICK_FOLDER, async () => {
     const result = await dialog.showOpenDialog({

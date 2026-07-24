@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc'
-import type { AppSettings, DownloadRequest, ScdlEvent, MixState } from '../shared/types'
+import type { AppSettings, DownloadRequest, MixLibrary, MixState, ScdlEvent } from '../shared/types'
 
 const api = {
   platform: process.platform,
@@ -28,11 +28,15 @@ const api = {
   openFolder: (folderPath: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC.OPEN_FOLDER, folderPath),
   getSessions: () => ipcRenderer.invoke(IPC.GET_SESSIONS),
-  getMix: () => ipcRenderer.invoke(IPC.GET_MIX),
+  getMixes: (): Promise<MixLibrary> => ipcRenderer.invoke(IPC.GET_MIXES),
+  getMix: (mixId?: string): Promise<MixState | null> => ipcRenderer.invoke(IPC.GET_MIX, mixId),
   saveMix: (mix: MixState): Promise<MixState> => ipcRenderer.invoke(IPC.SAVE_MIX, mix),
-  clearMix: (): Promise<void> => ipcRenderer.invoke(IPC.CLEAR_MIX),
-  openMixPlaylist: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke(IPC.OPEN_MIX_PLAYLIST),
-  exportMix: () => ipcRenderer.invoke(IPC.EXPORT_MIX),
+  createMix: (name?: string): Promise<MixLibrary> => ipcRenderer.invoke(IPC.CREATE_MIX, name),
+  deleteMix: (mixId: string): Promise<MixLibrary> => ipcRenderer.invoke(IPC.DELETE_MIX, mixId),
+  setActiveMix: (mixId: string): Promise<MixLibrary> => ipcRenderer.invoke(IPC.SET_ACTIVE_MIX, mixId),
+  openMixPlaylist: (mixId?: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC.OPEN_MIX_PLAYLIST, mixId),
+  exportMix: (mixId?: string) => ipcRenderer.invoke(IPC.EXPORT_MIX, mixId),
   onEvent: (callback: (event: ScdlEvent) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: ScdlEvent) => callback(payload)
     ipcRenderer.on(IPC.EVENT, listener)

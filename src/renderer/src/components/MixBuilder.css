@@ -41,6 +41,79 @@
   object-fit: contain;
 }
 
+.mix-builder__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.mix-builder__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 180px;
+  padding: 6px 10px;
+  border: 3px solid var(--eb-outline);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.45);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 var(--eb-outline);
+}
+
+.mix-builder__tab:hover {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.mix-builder__tab--active {
+  background: var(--eb-pink);
+  font-weight: 700;
+}
+
+.mix-builder__tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mix-builder__tab-count {
+  flex-shrink: 0;
+  min-width: 1.4em;
+  padding: 0 4px;
+  border: 2px solid var(--eb-outline);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  text-align: center;
+}
+
+.mix-builder__tab-add {
+  padding: 6px 12px;
+  font-size: 18px;
+  line-height: 1;
+  min-width: 40px;
+}
+
+.mix-builder__name-controls {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.mix-builder__name-controls .mix-builder__name {
+  flex: 1;
+  min-width: 0;
+}
+
+.mix-builder__delete {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .mix-builder__name-row {
   display: flex;
   flex-direction: column;
