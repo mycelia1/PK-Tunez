@@ -453,7 +453,12 @@ export default function App(): JSX.Element {
         </div>
 
         <div className="app-shell__backpack">
-          <Backpack items={history} mixes={mixSummaries} onMixUpdated={() => void notifyMixUpdated()} />
+          <Backpack
+            items={history}
+            mixes={mixSummaries}
+            onMixUpdated={() => void notifyMixUpdated()}
+            onLibraryChanged={() => void refreshHistory()}
+          />
         </div>
 
         <footer className="app-footer">

@@ -1,10 +1,12 @@
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell, type WebContents } from 'electron'
 import { copyFileSync, existsSync } from 'fs'
 import { basename } from 'path'
-import { cancelDownload, startDownload } from './scdl'
+import { cancelDownload, isDownloadActive, startDownload } from './scdl'
 import { loadHistory } from './archive'
 import { ensureArchiveFile, loadSettings, saveSettings } from './settings'
-import { resolveAudioPath } from './resolveAudioPath'
+import { resolveAudioPath, resolveAudioPaths } from './resolveAudioPath'
+import { scanLibraryFolder } from './reconcileHistory'
+import { importTracks } from './importTracks'
 import { loadSessions } from './sessionLog'
 import {
   createMixState,
@@ -17,7 +19,19 @@ import {
   setActiveMixState
 } from './mixActions'
 import { IPC } from '../shared/ipc'
-import type { AppSettings, DownloadRequest, MixState } from '../shared/types'
+import type {
+  AppSettings,
+  DownloadRequest,
+  ImportMode,
+  LibraryScanProgress,
+  MixState
+} from '../shared/types'
+
+function progressReporter(sender: WebContents): (progress: LibraryScanProgress) => void {
+  return (progress) => {
+    if (!sender.isDestroyed()) sender.send(IPC.LIBRARY_PROGRESS, progress)
+  }
+}
 
 export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.START_DOWNLOAD, (event, request: DownloadRequest) => {
@@ -104,11 +118,34 @@ export function registerIpcHandlers(): void {
   })
   ipcMain.handle(IPC.FILE_EXISTS, (_event, filePath: string, trackId?: string) => {
     if (!filePath?.trim() && !trackId?.trim()) return false
-    return resolveAudioPath(filePath, loadSettings().downloadDir, trackId).exists
+    return resolveAudioPath(filePath, trackId).exists
   })
 
   ipcMain.handle(IPC.RESOLVE_AUDIO_PATH, (_event, filePath: string, trackId?: string) => {
-    return resolveAudioPath(filePath, loadSettings().downloadDir, trackId)
+    return resolveAudioPath(filePath, trackId)
+  })
+
+  ipcMain.handle(
+    IPC.RESOLVE_AUDIO_PATHS,
+    (_event, items: Array<{ filePath: string; trackId?: string }>) => resolveAudioPaths(items)
+  )
+
+  // A download appends to history as tracks finish, while these rewrite the
+  // whole file, so they are kept out of each other's way.
+  const busyMessage = 'Wait for the current download to finish first.'
+
+  ipcMain.handle(IPC.IMPORT_TRACKS, (event, mode: ImportMode) => {
+    if (isDownloadActive()) {
+      return { ok: false, added: 0, duplicates: 0, skippedMixes: 0, failed: 0, error: busyMessage }
+    }
+    return importTracks(mode === 'folder' ? 'folder' : 'files', progressReporter(event.sender))
+  })
+
+  ipcMain.handle(IPC.SCAN_LIBRARY, (event) => {
+    if (isDownloadActive()) {
+      return { ok: false, added: 0, relinked: 0, missing: 0, error: busyMessage }
+    }
+    return scanLibraryFolder(loadSettings().downloadDir, progressReporter(event.sender))
   })
 
   ipcMain.handle(IPC.OPEN_IN_DEFAULT_PLAYER, async (_event, filePath: string) => {

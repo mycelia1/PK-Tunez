@@ -291,12 +291,12 @@ function cleanupPartials(dir: string): number {
 }
 
 /** Remove truncated audio files and their archive entries after a session. */
-function sweepCorruptMedia(outputPath: string): number {
+async function sweepCorruptMedia(outputPath: string): Promise<number> {
   if (!outputPath?.trim()) return 0
   const settings = loadSettings()
   let removed = 0
 
-  for (const filePath of collectAudioFiles(outputPath)) {
+  for (const filePath of await collectAudioFiles(outputPath)) {
     const sidecarPath = findSidecarForMedia(filePath)
     const validation = validateCompletedMedia(filePath, sidecarPath)
     if (validation.ok) continue
@@ -830,7 +830,7 @@ function handleLine(line: string): void {
     const artist = existing?.artist ?? 'Unknown'
     const soundCloudTrackId = activeSoundCloudTrackId(id)
     const settings = loadSettings()
-    const filePath = resolveCompletedTrackPath(lastDestinationPath, soundCloudTrackId, settings.downloadDir)
+    const filePath = resolveCompletedTrackPath(lastDestinationPath, soundCloudTrackId)
     const sizeBytes = safeFileSize(filePath)
     const trackSlug = soundCloudTrackId ?? id
 
@@ -993,7 +993,7 @@ function attachProcessHandlers(proc: ChildProcessWithoutNullStreams): void {
     if (activeProcess === proc) activeProcess = null
     appendSessionLogLine(session?.logFilePath ?? null, error.message)
     emit({ type: 'error', message: error.message })
-    finalize(false, error.message)
+    void finalize(false, error.message)
   })
 }
 
@@ -1072,7 +1072,7 @@ function onRunClose(code: number | null): void {
   }
 
   if (success) {
-    finalize(
+    void finalize(
       true,
       s.totalDownloads > 0
         ? `Download session complete! ${s.totalDownloads} track(s) downloaded.`
@@ -1091,14 +1091,14 @@ function onRunClose(code: number | null): void {
       counts.error > 0
         ? ` ${counts.error} item(s) failed or were unavailable.`
         : ' Some items could not be downloaded.'
-    finalize(
+    void finalize(
       true,
       `Download session complete with some issues. ${completed} track(s) downloaded.${failedNote}`
     )
     return
   }
 
-  finalize(false, `Download ended with code ${code ?? 'unknown'}`)
+  void finalize(false, `Download ended with code ${code ?? 'unknown'}`)
 }
 
 function spawnRun(): void {
@@ -1119,27 +1119,37 @@ function spawnRun(): void {
     const message = error instanceof Error ? error.message : 'Failed to start scdl'
     appendSessionLogLine(session?.logFilePath ?? null, message)
     emit({ type: 'error', message })
-    finalize(false, message)
+    void finalize(false, message)
   }
 }
 
 /** Sweep partials, reconcile history from disk/sidecars, and remove sidecars. */
-function postSessionFolderCleanup(outputPath: string): void {
+async function postSessionFolderCleanup(outputPath: string): Promise<void> {
   const removed = cleanupPartials(outputPath)
   if (removed > 0) {
     emitStatus(`Removed ${removed} leftover partial file(s).`)
   }
 
-  const corruptRemoved = sweepCorruptMedia(outputPath)
+  const corruptRemoved = await sweepCorruptMedia(outputPath)
   if (corruptRemoved > 0) {
     emitStatus(`Removed ${corruptRemoved} incomplete or corrupt track file(s).`)
   }
 
   try {
-    const { merged, added } = reconcileHistoryEntries(loadHistory(), outputPath)
-    if (added.length > 0) {
+    // Scoped to the session folder, so missing files elsewhere in the library
+    // are left alone; only a full library scan may flag those.
+    const { merged, added, relinked, changed } = await reconcileHistoryEntries(
+      loadHistory(),
+      outputPath
+    )
+    if (changed) {
       saveHistory(merged)
+    }
+    if (added.length > 0) {
       emitStatus(`Reconciled backpack — recovered ${added.length} track(s) missing from history.`)
+    }
+    if (relinked > 0) {
+      emitStatus(`Relinked ${relinked} track(s) that had moved.`)
     }
   } catch {
     // Best-effort: never let a reconciliation hiccup block session completion.
@@ -1154,7 +1164,7 @@ function postSessionFolderCleanup(outputPath: string): void {
   }
 }
 
-function finalize(success: boolean, message: string): void {
+async function finalize(success: boolean, message: string): Promise<void> {
   if (!session) return
   if (session.cooldownTimer) {
     clearTimeout(session.cooldownTimer)
@@ -1167,7 +1177,8 @@ function finalize(success: boolean, message: string): void {
   activeProcess = null
   currentTrackId = null
 
-  postSessionFolderCleanup(outputPath)
+  // Awaited so the renderer's history refresh on `done` sees reconciled rows.
+  await postSessionFolderCleanup(outputPath)
   emit({ type: 'done', success: success && !s.cancelled, message })
 }
 
@@ -1244,6 +1255,14 @@ export function startDownload(window: BrowserWindow, request: DownloadRequest): 
   return { ok: true }
 }
 
+/**
+ * True while a session is running. A library scan or import rewrites the whole
+ * history file, so it must not overlap with the rows a live download appends.
+ */
+export function isDownloadActive(): boolean {
+  return session !== null || activeProcess !== null
+}
+
 export function cancelDownload(): void {
   if (!session && !activeProcess) return
 
@@ -1257,7 +1276,7 @@ export function cancelDownload(): void {
   emitStatus('Cancelling download…')
 
   const finishCancel = (): void => {
-    finalize(false, 'Download cancelled.')
+    void finalize(false, 'Download cancelled.')
   }
 
   const proc = activeProcess

@@ -63,7 +63,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: 'Download folder & archive',
     body: [
       'Here you set where files land and where the global download-archive.txt lives. The archive is used for dedup so already-downloaded tracks are skipped. Keeping the default archive path is fine for most people.',
-      'Try not to change the download folder often. Backpack looks up tracks under your current download path — if you switch folders, older downloads may not show up there even though the files are still on disk.'
+      'The download folder is your library. If you change it, press Scan library in the Backpack afterwards so tracks in the new folder get picked up.'
     ],
     target: 'psi-menu',
     openPsi: true
@@ -79,10 +79,11 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'backpack',
-    title: 'Backpack (downloaded tracks)',
+    title: 'Backpack (your track library)',
     body: [
-      'Completed tracks land in the Backpack history. You can open files in your default player and add them to one or more mixes.',
-      'Entries stay listed even after you move files (for example to a thumb drive) — handy for tracking what you already grabbed.'
+      'Completed tracks land here automatically. You can open files in your default player and add them to one or more mixes.',
+      'Use Import tracks to bring in audio from anywhere else — it gets copied into your download folder. Reorganized your folders? Press Scan library and moved tracks are recognized by their contents and relinked.',
+      'Entries stay listed even after a file goes away (for example onto a thumb drive); those show a Missing badge.'
     ],
     target: 'backpack'
   },

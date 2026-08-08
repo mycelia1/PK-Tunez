@@ -19,8 +19,7 @@ import type { MixExportResult, MixLibrary, MixState } from '../shared/types'
 let lastM3uPath: string | null = null
 
 function resolveMixTrackPath(filePath: string, trackId: string): string | null {
-  const settings = loadSettings()
-  const resolved = resolveAudioPath(filePath, settings.downloadDir, trackId)
+  const resolved = resolveAudioPath(filePath, trackId)
   return resolved.exists ? resolved.resolvedPath : null
 }
 

@@ -123,7 +123,8 @@ export const THEME_COPY: Record<UiTheme, ThemeCopy> = {
     streamEmpty: 'No tracks in queue. Enter a psychic signal to begin.',
     backpackTitle: 'Backpack',
     backpackHint: 'Tracks stay listed here even after you move files to a thumb drive.',
-    backpackEmpty: 'Your backpack is empty. Completed downloads appear here.',
+    backpackEmpty:
+      'Your backpack is empty. Completed downloads appear here, or use Import tracks to bring in audio you already have.',
     backpackSearchAria: 'Search backpack',
     backpackSearchPlaceholder: 'Search by title, artist, or file name…',
     mixLabTitle: 'Mix Lab',
@@ -148,7 +149,8 @@ export const THEME_COPY: Record<UiTheme, ThemeCopy> = {
     streamEmpty: 'Barrel empty. Load the banana barrel to begin.',
     backpackTitle: 'Banana Hoard',
     backpackHint: 'Tracks stay listed here even after you move files to a thumb drive.',
-    backpackEmpty: 'The hoard is empty. Completed downloads appear here.',
+    backpackEmpty:
+      'The hoard is empty. Completed downloads appear here, or use Import tracks to bring in audio you already have.',
     backpackSearchAria: 'Search banana hoard',
     backpackSearchPlaceholder: 'Search by title, artist, or file name…',
     mixLabTitle: 'Cranky Lab',

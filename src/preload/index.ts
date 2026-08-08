@@ -1,6 +1,17 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc'
-import type { AppSettings, DownloadRequest, MixLibrary, MixState, ScdlEvent } from '../shared/types'
+import type {
+  AppSettings,
+  DownloadRequest,
+  ImportMode,
+  ImportResult,
+  LibraryScanProgress,
+  LibraryScanResult,
+  MixLibrary,
+  MixState,
+  ResolvedAudioPath,
+  ScdlEvent
+} from '../shared/types'
 
 const api = {
   platform: process.platform,
@@ -16,11 +27,11 @@ const api = {
     sourcePath: string
   ): Promise<{ ok: boolean; error?: string; savedPath?: string; cancelled?: boolean }> =>
     ipcRenderer.invoke(IPC.DOWNLOAD_ARCHIVE_FILE, sourcePath),
-  resolveAudioPath: (
-    filePath: string,
-    trackId?: string
-  ): Promise<{ exists: boolean; resolvedPath: string }> =>
+  resolveAudioPath: (filePath: string, trackId?: string): Promise<ResolvedAudioPath> =>
     ipcRenderer.invoke(IPC.RESOLVE_AUDIO_PATH, filePath, trackId),
+  resolveAudioPaths: (
+    items: Array<{ filePath: string; trackId?: string }>
+  ): Promise<ResolvedAudioPath[]> => ipcRenderer.invoke(IPC.RESOLVE_AUDIO_PATHS, items),
   fileExists: (filePath: string, trackId?: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.FILE_EXISTS, filePath, trackId),
   openInDefaultPlayer: (filePath: string): Promise<{ ok: boolean; error?: string }> =>
@@ -37,10 +48,19 @@ const api = {
   openMixPlaylist: (mixId?: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC.OPEN_MIX_PLAYLIST, mixId),
   exportMix: (mixId?: string) => ipcRenderer.invoke(IPC.EXPORT_MIX, mixId),
+  importTracks: (mode: ImportMode): Promise<ImportResult> =>
+    ipcRenderer.invoke(IPC.IMPORT_TRACKS, mode),
+  scanLibrary: (): Promise<LibraryScanResult> => ipcRenderer.invoke(IPC.SCAN_LIBRARY),
   onEvent: (callback: (event: ScdlEvent) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: ScdlEvent) => callback(payload)
     ipcRenderer.on(IPC.EVENT, listener)
     return () => ipcRenderer.removeListener(IPC.EVENT, listener)
+  },
+  onLibraryProgress: (callback: (progress: LibraryScanProgress) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: LibraryScanProgress) =>
+      callback(payload)
+    ipcRenderer.on(IPC.LIBRARY_PROGRESS, listener)
+    return () => ipcRenderer.removeListener(IPC.LIBRARY_PROGRESS, listener)
   }
 }
 

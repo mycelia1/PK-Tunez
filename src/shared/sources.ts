@@ -4,6 +4,8 @@
  * the user can paste either kind of link without choosing a source manually.
  */
 
+import type { TrackSource } from './types'
+
 export type DownloadSource = 'soundcloud' | 'youtube'
 
 /** YouTube URL shape, which determines playlist/channel vs single-video behavior. */
@@ -30,6 +32,20 @@ export function detectSource(rawUrl: string): DownloadSource {
 
 export function isYouTubeUrl(rawUrl: string): boolean {
   return detectSource(rawUrl) === 'youtube'
+}
+
+/**
+ * Provenance for a library track. Unlike `detectSource`, an unrecognized or
+ * empty URL means the file did not come from a download at all, so it reports
+ * 'local' rather than defaulting to SoundCloud.
+ */
+export function trackSourceForUrl(rawUrl: string): TrackSource {
+  if (!rawUrl?.trim()) return 'local'
+  const host = hostnameOf(rawUrl)
+  if (host === 'youtu.be' || host.endsWith('.youtu.be')) return 'youtube'
+  if (host === 'youtube.com' || host.endsWith('.youtube.com')) return 'youtube'
+  if (host === 'soundcloud.com' || host.endsWith('.soundcloud.com')) return 'soundcloud'
+  return 'local'
 }
 
 /**

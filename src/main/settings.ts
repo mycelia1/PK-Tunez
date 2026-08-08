@@ -35,7 +35,7 @@ function settingsPath(): string {
   return join(app.getPath('userData'), 'settings.json')
 }
 
-function historyPath(): string {
+export function historyFilePath(): string {
   return join(app.getPath('userData'), 'history.json')
 }
 
@@ -83,7 +83,7 @@ export function saveSettings(partial: Partial<AppSettings>): AppSettings {
 }
 
 export function loadHistory(): HistoryEntry[] {
-  const path = historyPath()
+  const path = historyFilePath()
   if (!existsSync(path)) {
     return []
   }
@@ -107,14 +107,18 @@ export function appendHistory(entry: HistoryEntry): HistoryEntry[] {
   } else {
     history.unshift(entry)
   }
-  writeFileSync(historyPath(), JSON.stringify(history.slice(0, MAX_HISTORY_ENTRIES), null, 2), 'utf8')
+  writeFileSync(
+    historyFilePath(),
+    JSON.stringify(history.slice(0, MAX_HISTORY_ENTRIES), null, 2),
+    'utf8'
+  )
   return history
 }
 
 /** Overwrite the whole history file (used by disk reconciliation). */
 export function saveHistory(entries: HistoryEntry[]): HistoryEntry[] {
   const trimmed = entries.slice(0, MAX_HISTORY_ENTRIES)
-  writeFileSync(historyPath(), JSON.stringify(trimmed, null, 2), 'utf8')
+  writeFileSync(historyFilePath(), JSON.stringify(trimmed, null, 2), 'utf8')
   return trimmed
 }
 

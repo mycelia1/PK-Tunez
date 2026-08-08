@@ -32,7 +32,20 @@ function expectedBytesFromSidecar(sidecarPath: string): number | null {
   return null
 }
 
-export function validateCompletedMedia(mediaPath: string, sidecarPath?: string | null): MediaValidationResult {
+export interface ValidateMediaOptions {
+  /**
+   * Skip the minimum-size floor. The floor exists to catch downloads truncated
+   * mid-transfer; a file the user hands us is whatever length they intended, so
+   * short clips and interludes must not be silently discarded.
+   */
+  allowSmall?: boolean
+}
+
+export function validateCompletedMedia(
+  mediaPath: string,
+  sidecarPath?: string | null,
+  options: ValidateMediaOptions = {}
+): MediaValidationResult {
   if (!mediaPath?.trim() || !existsSync(mediaPath)) {
     return { ok: false, reason: 'File missing', actualBytes: 0 }
   }
@@ -44,7 +57,7 @@ export function validateCompletedMedia(mediaPath: string, sidecarPath?: string |
     return { ok: false, reason: 'Cannot stat file', actualBytes: 0 }
   }
 
-  if (actualBytes < MIN_MEDIA_BYTES) {
+  if (!options.allowSmall && actualBytes < MIN_MEDIA_BYTES) {
     return {
       ok: false,
       reason: `File too small (${actualBytes} bytes)`,

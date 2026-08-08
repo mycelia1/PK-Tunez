@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+
+ensure changes made will work for cross platforom (our github workflows create builds for windows installer, macos like .dmg x64, and macos arm64)

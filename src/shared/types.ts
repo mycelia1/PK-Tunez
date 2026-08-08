@@ -43,6 +43,9 @@ export interface AppSettings {
   logsEnabled: boolean
 }
 
+/** Where a library track came from. Absent on entries written before this field existed. */
+export type TrackSource = 'soundcloud' | 'youtube' | 'local'
+
 export interface HistoryEntry {
   trackId: string
   title: string
@@ -51,6 +54,57 @@ export interface HistoryEntry {
   filePath: string
   sizeBytes: number
   ts: number
+  /**
+   * Content fingerprint (`<size>-<sha256 of first 64KB>`) used to recognize a
+   * track after it has been moved or renamed inside the download folder.
+   */
+  fingerprint?: string
+  /** File mtime in ms, cached so an unchanged file is never re-hashed. */
+  mtimeMs?: number
+  source?: TrackSource
+  /** True when the file could not be found anywhere under the download folder. */
+  missing?: boolean
+}
+
+/**
+ * Windows and Linux cannot offer file and directory selection in a single
+ * native dialog, so import is split into two entry points.
+ */
+export type ImportMode = 'files' | 'folder'
+
+export interface ImportResult {
+  ok: boolean
+  cancelled?: boolean
+  /** Tracks newly added to the library. */
+  added: number
+  /** Sources whose content already existed in the library. */
+  duplicates: number
+  /** Sources refused because they live under a folder named `mixes`. */
+  skippedMixes: number
+  failed: number
+  error?: string
+}
+
+export interface LibraryScanResult {
+  ok: boolean
+  /** Audio files on disk that were not in the library yet. */
+  added: number
+  /** Existing entries whose stored path was stale and has been corrected. */
+  relinked: number
+  /** Entries whose file could not be found anywhere under the download folder. */
+  missing: number
+  error?: string
+}
+
+export interface LibraryScanProgress {
+  phase: 'walking' | 'fingerprinting' | 'copying' | 'saving'
+  processed: number
+  total: number
+}
+
+export interface ResolvedAudioPath {
+  exists: boolean
+  resolvedPath: string
 }
 
 export type QueueItemStatus = 'queued' | 'downloading' | 'completed' | 'skipped' | 'error'
@@ -182,10 +236,11 @@ export interface ScdlApi {
   downloadArchiveFile: (
     sourcePath: string
   ) => Promise<{ ok: boolean; error?: string; savedPath?: string; cancelled?: boolean }>
-  resolveAudioPath: (
-    filePath: string,
-    trackId?: string
-  ) => Promise<{ exists: boolean; resolvedPath: string }>
+  resolveAudioPath: (filePath: string, trackId?: string) => Promise<ResolvedAudioPath>
+  /** Resolve a whole page of Backpack rows in one round trip. */
+  resolveAudioPaths: (
+    items: Array<{ filePath: string; trackId?: string }>
+  ) => Promise<ResolvedAudioPath[]>
   fileExists: (filePath: string, trackId?: string) => Promise<boolean>
   openInDefaultPlayer: (filePath: string) => Promise<{ ok: boolean; error?: string }>
   openFolder: (folderPath: string) => Promise<{ ok: boolean; error?: string }>
@@ -198,7 +253,10 @@ export interface ScdlApi {
   setActiveMix: (mixId: string) => Promise<MixLibrary>
   openMixPlaylist: (mixId?: string) => Promise<{ ok: boolean; error?: string }>
   exportMix: (mixId?: string) => Promise<MixExportResult>
+  importTracks: (mode: ImportMode) => Promise<ImportResult>
+  scanLibrary: () => Promise<LibraryScanResult>
   onEvent: (callback: (event: ScdlEvent) => void) => () => void
+  onLibraryProgress: (callback: (progress: LibraryScanProgress) => void) => () => void
 }
 
 declare global {
