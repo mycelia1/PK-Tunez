@@ -64,6 +64,10 @@ interface DownloadSession {
   runDownloads: number
   totalDownloads: number
   sawThrottle: boolean
+  /** YouTube returned a permanent 403 for the media stream (PO token required). */
+  youtubeStreamBlocked: boolean
+  /** Stale-cookie advice is logged at most once per session, not per video. */
+  warnedCookiesStale: boolean
   killedForCooldown: boolean
   cancelled: boolean
   cooldownTimer: ReturnType<typeof setTimeout> | null
@@ -511,6 +515,14 @@ function buildYouTubeArgs(request: DownloadRequest): {
   if (settings.youtubeCookiesFromBrowser) {
     args.push('--cookies-from-browser', settings.youtubeCookiesBrowser.trim() || 'firefox')
   }
+  // Escape hatch for YouTube starting to demand a PO token on whichever client
+  // yt-dlp defaults to (it has happened to `android_vr`, `web`, and others).
+  // The bundled yt-dlp is frozen at build time, so without this the only way to
+  // switch clients is a full app release.
+  const playerClient = (settings.youtubePlayerClient ?? '').trim()
+  if (playerClient) {
+    args.push('--extractor-args', `youtube:player_client=${playerClient}`)
+  }
   const denoPath = getBundledDenoPath()
   if (denoPath) {
     args.push('--js-runtimes', `deno:${denoPath}`)
@@ -657,11 +669,68 @@ function isYouTubeCookiesNeeded(line: string): boolean {
   )
 }
 
+/**
+ * YouTube rejecting the media fetch itself, after extraction already succeeded.
+ *
+ * This is a signed-URL rejection — the player client yt-dlp chose needs a GVS PO
+ * token it cannot mint — not rate limiting. Every retry with the same client
+ * gets the same 403, so it must never arm the throttle backoff: doing so burns
+ * ~15 minutes of escalating waits and re-runs full extraction each time, which
+ * only adds request volume against an error that cannot resolve on its own.
+ */
+function isYouTubeStreamBlocked(line: string): boolean {
+  const lower = line.toLowerCase()
+  return (
+    lower.includes('unable to download video data') &&
+    (lower.includes('403') || lower.includes('forbidden'))
+  )
+}
+
+/**
+ * yt-dlp warning ahead of time that a client's formats need a PO token it cannot
+ * mint. It only predicts a possible 403 ("may yield HTTP Error 403") and yt-dlp
+ * may still fall back to a format that works, so this is neither a throttle nor
+ * fatal on its own — but its wording does mention 403, so it has to be
+ * recognized explicitly to keep it out of the throttle detection below.
+ */
+function isYouTubePoTokenNotice(line: string): boolean {
+  const lower = line.toLowerCase()
+  return lower.includes('po token') && lower.includes('require')
+}
+
+/**
+ * Cookies were read but YouTube had already rotated them. Usually means the
+ * browser was open while yt-dlp read its cookie DB.
+ */
+function isYouTubeCookiesStale(line: string): boolean {
+  const lower = line.toLowerCase()
+  return (
+    lower.includes('cookies are no longer valid') || lower.includes('have likely been rotated')
+  )
+}
+
+const YOUTUBE_STREAM_BLOCKED_MESSAGE =
+  'YouTube refused the audio stream (HTTP 403). This is not rate limiting: the player ' +
+  'client yt-dlp selected now requires a PO token, so waiting and retrying cannot fix ' +
+  'it. Set a different player client in Psi Menu -> YouTube settings (try "visionos", ' +
+  'then "android"), or update PK-Tunez to get a newer bundled yt-dlp.'
+
+const YOUTUBE_COOKIES_STALE_MESSAGE =
+  'YouTube rejected the browser cookies as already rotated, so this download is running ' +
+  'signed out. Fully quit the browser before downloading, or keep a separate browser ' +
+  'profile signed in and otherwise unused.'
+
 function handleLine(line: string): void {
   const trimmed = line.trim()
   if (!trimmed) return
 
   const lower = trimmed.toLowerCase()
+
+  const streamBlocked = currentSource === 'youtube' && isYouTubeStreamBlocked(trimmed)
+  if (streamBlocked && session) {
+    session.youtubeStreamBlocked = true
+  }
+  const poTokenNotice = currentSource === 'youtube' && isYouTubePoTokenNotice(trimmed)
 
   const is403 =
     lower.includes('forbidden') ||
@@ -669,16 +738,31 @@ function handleLine(line: string): void {
   const is429 =
     lower.includes('too many requests') ||
     (/\b429\b/.test(lower) && (lower.includes('error') || lower.includes('http')))
-  if (is403 || is429) {
+  // A blocked YouTube stream is a permanent 403, and a PO-token notice is only a
+  // prediction of one, so neither may be reported as throttling.
+  if ((is403 || is429) && !streamBlocked && !poTokenNotice) {
     if (session) session.sawThrottle = true
+    const host = currentSource === 'youtube' ? 'YouTube' : 'SoundCloud'
     const throttleMessage = is403
-      ? 'SoundCloud refused a request (HTTP 403) — likely throttling this session. PK-Tunez will back off and retry automatically.'
-      : 'SoundCloud is throttling requests (HTTP 429). PK-Tunez will slow down and resume automatically.'
+      ? `${host} refused a request (HTTP 403) — likely throttling this session. PK-Tunez will back off and retry automatically.`
+      : `${host} is throttling requests (HTTP 429). PK-Tunez will slow down and resume automatically.`
     appendSessionLogLine(session?.logFilePath ?? null, throttleMessage)
     emit({
       type: 'rate-limit',
       message: throttleMessage
     })
+  }
+
+  const cookieSession = session
+  if (
+    currentSource === 'youtube' &&
+    cookieSession &&
+    !cookieSession.warnedCookiesStale &&
+    isYouTubeCookiesStale(trimmed)
+  ) {
+    cookieSession.warnedCookiesStale = true
+    appendSessionLogLine(cookieSession.logFilePath, YOUTUBE_COOKIES_STALE_MESSAGE)
+    emit({ type: 'status', message: YOUTUBE_COOKIES_STALE_MESSAGE })
   }
 
   if (lower.includes('impersonation') && lower.includes('no impersonate target')) {
@@ -1023,7 +1107,7 @@ function startCooldown(seconds: number, reason: 'chunk' | 'throttle'): void {
   const message =
     reason === 'chunk'
       ? `Cooling down ${seconds}s before the next batch (${s.totalDownloads} downloaded so far)...`
-      : `Throttled — backing off ${seconds}s before resuming (attempt ${s.throttleAttempts}/${s.maxThrottleRetries})...`
+      : `Throttled by ${s.source === 'youtube' ? 'YouTube' : 'SoundCloud'} — backing off ${seconds}s before resuming (attempt ${s.throttleAttempts}/${s.maxThrottleRetries})...`
 
   // The renderer turns `seconds` + these fields into a live countdown, so we no
   // longer emit a separate static 'status' line (it would fight the ticking timer).
@@ -1033,6 +1117,7 @@ function startCooldown(seconds: number, reason: 'chunk' | 'throttle'): void {
     reason,
     seconds,
     message,
+    source: s.source,
     attempt: reason === 'throttle' ? s.throttleAttempts : undefined,
     maxAttempts: reason === 'throttle' ? s.maxThrottleRetries : undefined,
     downloaded: reason === 'chunk' ? s.totalDownloads : undefined
@@ -1064,6 +1149,13 @@ function onRunClose(code: number | null): void {
   }
 
   const success = code === 0
+
+  // Nothing downloaded and YouTube refused the stream outright: retrying picks
+  // the same client and fails identically, so surface the fix instead of waiting.
+  if (s.youtubeStreamBlocked && s.totalDownloads === 0) {
+    void finalize(false, YOUTUBE_STREAM_BLOCKED_MESSAGE)
+    return
+  }
 
   if (s.sawThrottle && s.throttleAttempts < s.maxThrottleRetries) {
     s.throttleAttempts += 1
@@ -1105,6 +1197,7 @@ function spawnRun(): void {
   if (!session) return
   const s = session
   s.sawThrottle = false
+  s.youtubeStreamBlocked = false
   s.runDownloads = 0
   s.chunkDownloads = 0
   s.killedForCooldown = false
@@ -1235,6 +1328,8 @@ export function startDownload(window: BrowserWindow, request: DownloadRequest): 
     runDownloads: 0,
     totalDownloads: 0,
     sawThrottle: false,
+    youtubeStreamBlocked: false,
+    warnedCookiesStale: false,
     killedForCooldown: false,
     cancelled: false,
     cooldownTimer: null,

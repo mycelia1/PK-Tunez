@@ -359,8 +359,13 @@ export function PsiMenu({
                 <div className="psi-menu__help-block">
                   <strong className="eb-label">Troubleshooting</strong>
                   <p className="psi-menu__help">
-                    HTTP 403/429: SoundCloud is throttling. PK-Tunez now backs off and resumes automatically; you can also
+                    HTTP 403/429 on SoundCloud: throttling. PK-Tunez backs off and resumes automatically; you can also
                     lower the chunk size, raise the cooldown, or drop the auth token for public batches.
+                  </p>
+                  <p className="psi-menu__help">
+                    HTTP 403 on YouTube, immediately after the metadata/thumbnail lines: not throttling. The player
+                    client now needs a PO token, so retrying cannot help — set a different one under YouTube settings
+                    below.
                   </p>
                   <p className="psi-menu__help">
                     Browser impersonation warning: optional. Install with{' '}
@@ -408,6 +413,36 @@ export function PsiMenu({
                   </select>
                   <small className="psi-menu__help">
                     Pick the browser where you are signed in to YouTube. {cookieBrowserHelp}
+                  </small>
+                </label>
+
+                <label className="psi-menu__field">
+                  <span className="eb-label">Player client (advanced)</span>
+                  <input
+                    className="eb-input"
+                    type="text"
+                    value={settings.youtubePlayerClient}
+                    placeholder="leave empty for automatic"
+                    onChange={(event) => onChange({ youtubePlayerClient: event.target.value })}
+                  />
+                  <small className="psi-menu__help">
+                    Only needed if YouTube downloads fail with{' '}
+                    <code className="psi-menu__inline-code">HTTP 403</code> right after metadata is
+                    written. YouTube periodically starts requiring a PO token on whichever client is
+                    used by default, which breaks it permanently until a different one is picked. Try{' '}
+                    <code className="psi-menu__inline-code">visionos</code>, then{' '}
+                    <code className="psi-menu__inline-code">android</code>. Accepts any yt-dlp{' '}
+                    <code className="psi-menu__inline-code">player_client</code> value, including a
+                    comma-separated list such as{' '}
+                    <code className="psi-menu__inline-code">default,visionos</code>. See the{' '}
+                    <a
+                      href="https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      yt-dlp PO token guide
+                    </a>
+                    .
                   </small>
                 </label>
               </div>

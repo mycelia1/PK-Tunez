@@ -28,6 +28,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   impersonateTarget: '',
   youtubeCookiesFromBrowser: false,
   youtubeCookiesBrowser: 'firefox',
+  youtubePlayerClient: '',
   logsEnabled: false
 }
 

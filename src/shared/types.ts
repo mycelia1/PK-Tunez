@@ -39,6 +39,16 @@ export interface AppSettings {
   youtubeCookiesFromBrowser: boolean
   /** Which browser profile to read YouTube cookies from. */
   youtubeCookiesBrowser: YouTubeCookiesBrowser
+  /**
+   * yt-dlp `--extractor-args youtube:player_client=` value (e.g. "visionos" or
+   * "default,android"). Empty leaves yt-dlp's own default selection alone.
+   *
+   * This is the escape hatch for YouTube periodically requiring PO tokens on a
+   * client yt-dlp still defaults to: the bundled yt-dlp is frozen at build time,
+   * so without this a broken client can only be worked around by shipping a
+   * whole new release.
+   */
+  youtubePlayerClient: string
   /** Write full download output to a log file under app data (logs/). */
   logsEnabled: boolean
 }
@@ -202,6 +212,8 @@ export type ScdlEvent =
       message: string
       seconds: number
       reason: 'chunk' | 'throttle'
+      /** Which service the run is hitting, so countdown copy names the right one. */
+      source?: 'soundcloud' | 'youtube'
       attempt?: number
       maxAttempts?: number
       downloaded?: number

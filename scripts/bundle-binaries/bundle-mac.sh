@@ -25,6 +25,19 @@ LAUNCHER="${SCRIPT_DIR}/scdl_launcher.py"
 # can solve YouTube's JS challenges for age-restricted / signed content.
 DENO_VERSION="v2.9.1"
 
+# Oldest embedded yt-dlp we are willing to ship, as a release date.
+#
+# This is a floor, deliberately not an exact pin. YouTube breaks whichever player
+# client yt-dlp defaults to every few weeks by demanding a PO token for it, and
+# PyInstaller freezes yt-dlp into the scdl binary, so a shipped build can never
+# be updated in place. Pinning an exact version would guarantee we ship a broken
+# YouTube path the moment YouTube moves again.
+#
+# 2026.08.17 is the first build carrying the `visionos` player client, which
+# replaced `android_vr` after YouTube started requiring a GVS PO token for it.
+# Older builds 403 on every YouTube download.
+YTDLP_MIN_VERSION="2026.08.17"
+
 echo "PK-Tunez macOS binary bundler"
 echo "  project root: ${PROJECT_ROOT}"
 echo "  work dir:     ${WORK_DIR}"
@@ -49,6 +62,15 @@ echo ""
 echo "[2/6] Installing scdl + curl_cffi + pyinstaller..."
 "${PY}" -m pip install --upgrade pip
 "${PY}" -m pip install scdl curl_cffi pyinstaller
+
+# Upgrade yt-dlp explicitly and last, so it wins over the older release that
+# scdl's dependency range resolves to. Letting yt-dlp arrive only as a
+# transitive dependency is how builds silently shipped a months-old extractor.
+# `--pre` tracks the nightly channel, which upstream recommends precisely because
+# YouTube breaks extraction faster than stable releases go out.
+echo ""
+echo "Upgrading embedded yt-dlp to nightly..."
+"${PY}" -m pip install --upgrade --pre 'yt-dlp[default]'
 
 # 3. Build standalone scdl with yt-dlp collected in.
 echo ""
@@ -124,6 +146,21 @@ if ! "${OUT_DIR}/scdl" pk-ytdlp --version >/dev/null 2>&1; then
   exit 1
 fi
 echo "scdl pk-ytdlp OK (embedded yt-dlp reachable)"
+
+# Fail the build if the embedded yt-dlp predates the floor above. Without this
+# the only symptom of a bad resolve is every YouTube download 403ing for users.
+YTDLP_RAW="$("${OUT_DIR}/scdl" pk-ytdlp --version 2>&1 | head -n 1)"
+YTDLP_VERSION="$(printf '%s' "${YTDLP_RAW}" | grep -oE '[0-9]{4}\.[0-9]{2}\.[0-9]{2}' | head -n 1)"
+if [ -z "${YTDLP_VERSION}" ]; then
+  echo "Could not parse embedded yt-dlp version from: ${YTDLP_RAW}" >&2
+  exit 1
+fi
+# Zero-padded date components, so a plain lexicographic sort is chronological.
+if [ "$(printf '%s\n%s\n' "${YTDLP_MIN_VERSION}" "${YTDLP_VERSION}" | sort | head -n 1)" != "${YTDLP_MIN_VERSION}" ]; then
+  echo "Embedded yt-dlp ${YTDLP_VERSION} is older than the required ${YTDLP_MIN_VERSION}. YouTube downloads would fail with HTTP 403." >&2
+  exit 1
+fi
+echo "embedded yt-dlp ${YTDLP_VERSION} meets the ${YTDLP_MIN_VERSION} floor"
 
 # Verify the bundled Deno runs (also catches an arch mismatch early).
 if ! "${OUT_DIR}/deno" --version >/dev/null 2>&1; then

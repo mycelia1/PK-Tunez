@@ -24,6 +24,19 @@ $launcher = Join-Path $scriptDir 'scdl_launcher.py'
 # can solve YouTube's JS challenges for age-restricted / signed content.
 $denoVersion = 'v2.9.1'
 
+# Oldest embedded yt-dlp we are willing to ship, as a release date.
+#
+# This is a floor, deliberately not an exact pin. YouTube breaks whichever player
+# client yt-dlp defaults to every few weeks by demanding a PO token for it, and
+# PyInstaller freezes yt-dlp into scdl.exe, so a shipped build can never be
+# updated in place. Pinning an exact version would guarantee we ship a broken
+# YouTube path the moment YouTube moves again.
+#
+# 2026.08.17 is the first build carrying the `visionos` player client, which
+# replaced `android_vr` after YouTube started requiring a GVS PO token for it.
+# Older builds 403 on every YouTube download.
+$ytDlpMinVersion = '2026.08.17'
+
 Write-Host "PK-Tunez Windows binary bundler"
 Write-Host "  project root: $projectRoot"
 Write-Host "  work dir:     $workDir"
@@ -41,6 +54,14 @@ $py = Join-Path $venvDir 'Scripts\python.exe'
 Write-Host "`n[2/6] Installing scdl + curl_cffi + pyinstaller..."
 & $py -m pip install --upgrade pip
 & $py -m pip install scdl curl_cffi pyinstaller
+
+# Upgrade yt-dlp explicitly and last, so it wins over the older release that
+# scdl's dependency range resolves to. Letting yt-dlp arrive only as a
+# transitive dependency is how builds silently shipped a months-old extractor.
+# `--pre` tracks the nightly channel, which upstream recommends precisely because
+# YouTube breaks extraction faster than stable releases go out.
+Write-Host "`nUpgrading embedded yt-dlp to nightly..."
+& $py -m pip install --upgrade --pre 'yt-dlp[default]'
 
 # 3. Build standalone scdl.exe with yt-dlp collected in.
 Write-Host "`n[3/6] Building scdl.exe with PyInstaller..."
@@ -123,6 +144,21 @@ if ($ytdlpExit -ne 0) {
   throw "scdl.exe pk-ytdlp --version failed (exit $ytdlpExit)"
 }
 Write-Host "scdl.exe pk-ytdlp OK (embedded yt-dlp reachable: $($ytdlpOut.Trim()))"
+
+# Fail the build if the embedded yt-dlp predates the floor above. Without this
+# the only symptom of a bad resolve is every YouTube download 403ing for users.
+# Matches the date prefix only, so a nightly's trailing build number (e.g.
+# 2026.08.17.073947) compares equal to the same day's floor rather than above it.
+$ytDlpVersionMatch = [regex]::Match($ytdlpOut, '\d{4}\.\d{2}\.\d{2}')
+if (-not $ytDlpVersionMatch.Success) {
+  throw "Could not parse embedded yt-dlp version from: $($ytdlpOut.Trim())"
+}
+# Date components are zero-padded, so string comparison is chronological.
+$ytDlpVersion = $ytDlpVersionMatch.Value
+if ($ytDlpVersion -lt $ytDlpMinVersion) {
+  throw "Embedded yt-dlp $ytDlpVersion is older than the required $ytDlpMinVersion. YouTube downloads would fail with HTTP 403."
+}
+Write-Host "embedded yt-dlp $ytDlpVersion meets the $ytDlpMinVersion floor"
 
 # Verify the bundled Deno runs (also catches an arch mismatch early).
 $ErrorActionPreference = 'Continue'

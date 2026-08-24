@@ -37,7 +37,8 @@ function cooldownMessage(event: CooldownEvent, remainingSeconds: number): string
   if (event.reason === 'throttle') {
     const retry =
       event.attempt && event.maxAttempts ? ` (retry ${event.attempt}/${event.maxAttempts})` : ''
-    return `\u26A0 SoundCloud rate limit hit — backing off. Resuming in ${time}${retry}`
+    const host = event.source === 'youtube' ? 'YouTube' : 'SoundCloud'
+    return `\u26A0 ${host} rate limit hit — backing off. Resuming in ${time}${retry}`
   }
   const downloaded =
     typeof event.downloaded === 'number' ? ` (${event.downloaded} downloaded so far)` : ''
@@ -65,6 +66,7 @@ const defaultSettings: AppSettings = {
   impersonateTarget: '',
   youtubeCookiesFromBrowser: false,
   youtubeCookiesBrowser: 'firefox',
+  youtubePlayerClient: '',
   logsEnabled: false
 }
 
