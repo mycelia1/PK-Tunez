@@ -16,6 +16,8 @@ interface BackpackProps {
   onMixUpdated: () => void
   /** Reload history after an import or scan has changed the library. */
   onLibraryChanged: () => void
+  /** When a download session is running, import/scan would race history writes. */
+  sessionActive?: boolean
 }
 
 const PAGE_SIZE = 100
@@ -63,7 +65,8 @@ export function Backpack({
   items,
   mixes,
   onMixUpdated,
-  onLibraryChanged
+  onLibraryChanged,
+  sessionActive = false
 }: BackpackProps): JSX.Element {
   const { copy, sprites } = useTheme()
   const [resolvedPaths, setResolvedPaths] = useState<Record<string, { exists: boolean; path: string }>>({})
@@ -77,6 +80,7 @@ export function Backpack({
   const [summary, setSummary] = useState<string | null>(null)
   const [importMenuOpen, setImportMenuOpen] = useState(false)
   const importMenuRef = useRef<HTMLDivElement | null>(null)
+  const creatingMixRef = useRef(false)
 
   // Precompute a lowercase haystack (title + artist + filename) per item so
   // typing any partial substring — e.g. "bem" inside "Passo Bem Solto" — matches.
@@ -139,6 +143,10 @@ export function Backpack({
   }, [])
 
   useEffect(() => {
+    if (sessionActive) setImportMenuOpen(false)
+  }, [sessionActive])
+
+  useEffect(() => {
     if (!importMenuOpen) return
 
     const onPointerDown = (event: MouseEvent): void => {
@@ -186,6 +194,7 @@ export function Backpack({
   }
 
   const handleImport = async (mode: ImportMode): Promise<void> => {
+    if (sessionActive) return
     setImportMenuOpen(false)
     setBusy('import')
     setSummary(null)
@@ -217,6 +226,7 @@ export function Backpack({
   }
 
   const handleScan = async (): Promise<void> => {
+    if (sessionActive) return
     setBusy('scan')
     setSummary(null)
     setProgress(null)
@@ -291,8 +301,39 @@ export function Backpack({
     onMixUpdated()
   }
 
+  const handleAddNewMix = async (item: HistoryEntry, resolvedPath: string): Promise<void> => {
+    if (creatingMixRef.current) return
+    creatingMixRef.current = true
+    try {
+      const library = await window.scdl.createMix()
+      const mix = library.mixes.find((entry) => entry.id === library.activeMixId)
+      if (!mix || mix.tracks.some((track) => track.trackId === item.trackId)) {
+        onMixUpdated()
+        return
+      }
+
+      await window.scdl.saveMix({
+        ...mix,
+        tracks: [
+          ...mix.tracks,
+          {
+            trackId: item.trackId,
+            title: item.title,
+            artist: item.artist,
+            filePath: resolvedPath
+          }
+        ]
+      })
+      onMixUpdated()
+    } finally {
+      creatingMixRef.current = false
+    }
+  }
+
   const isSearching = query.trim().length > 0
   const hasMore = filtered.length > displayed.length
+  const libraryLocked = busy !== null || sessionActive
+  const sessionLockHint = 'Wait for the current download to finish first.'
 
   return (
     <section className="backpack eb-panel" aria-label="Download history" data-tour="backpack">
@@ -308,7 +349,8 @@ export function Backpack({
           <EbButton
             type="button"
             className="eb-button backpack__toolbar-button"
-            disabled={busy !== null}
+            disabled={libraryLocked}
+            title={sessionActive ? sessionLockHint : undefined}
             aria-expanded={importMenuOpen}
             aria-haspopup="menu"
             onClick={() => setImportMenuOpen((open) => !open)}
@@ -339,7 +381,8 @@ export function Backpack({
         <EbButton
           type="button"
           className="eb-button eb-button--secondary backpack__toolbar-button"
-          disabled={busy !== null}
+          disabled={libraryLocked}
+          title={sessionActive ? sessionLockHint : undefined}
           onClick={() => void handleScan()}
         >
           {busy === 'scan' ? 'Scanning…' : 'Scan library'}
@@ -471,6 +514,13 @@ export function Backpack({
                                 })}
                               </ul>
                             )}
+                            <button
+                              type="button"
+                              className="backpack__mix-menu-new"
+                              onClick={() => void handleAddNewMix(item, resolved.path)}
+                            >
+                              Add new mix
+                            </button>
                           </div>
                         )}
                       </div>

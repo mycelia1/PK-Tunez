@@ -458,6 +458,7 @@ export default function App(): JSX.Element {
           <Backpack
             items={history}
             mixes={mixSummaries}
+            sessionActive={isBusy}
             onMixUpdated={() => void notifyMixUpdated()}
             onLibraryChanged={() => void refreshHistory()}
           />
