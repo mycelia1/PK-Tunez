@@ -67,7 +67,12 @@ const defaultSettings: AppSettings = {
   youtubeCookiesFromBrowser: false,
   youtubeCookiesBrowser: 'firefox',
   youtubePlayerClient: '',
-  logsEnabled: false
+  logsEnabled: false,
+  serverEnabled: true,
+  serverPort: 47321,
+  tunnelEnabled: false,
+  tunnelToken: '',
+  tunnelHostname: ''
 }
 
 export default function App(): JSX.Element {
@@ -408,6 +413,36 @@ export default function App(): JSX.Element {
     }
   }
 
+  const handleCleanupFilenames = async (): Promise<void> => {
+    const preview = await window.scdl.cleanupFilenames(false)
+    if (!preview.ok) {
+      setStatusMessage(preview.error ?? 'Could not check YouTube file names.')
+      setStatusVariant('error')
+      playSound('error')
+      return
+    }
+    if (preview.renamed === 0) {
+      setStatusMessage('No YouTube file names need a change.')
+      setStatusVariant('info')
+      return
+    }
+    const confirmed = window.confirm(
+      `Rename ${preview.renamed} YouTube file(s)? This removes the channel name from each file name.`
+    )
+    if (!confirmed) return
+    const result = await window.scdl.cleanupFilenames(true)
+    if (!result.ok) {
+      setStatusMessage(result.error ?? 'Could not rename YouTube files.')
+      setStatusVariant('error')
+      playSound('error')
+      return
+    }
+    setStatusMessage(`Renamed ${result.renamed} YouTube file(s). The channel name is gone.`)
+    setStatusVariant('success')
+    playSound('success')
+    void refreshHistory()
+  }
+
   const handleDownloadArchiveFile = async (): Promise<void> => {
     const archivePath = draftSettings.archivePath || settings.archivePath
     const result = await window.scdl.downloadArchiveFile(archivePath)
@@ -488,6 +523,7 @@ export default function App(): JSX.Element {
           onSetDownloadFolder={() => void handleSetDownloadFolder()}
           onSetArchiveFile={() => void handleSetArchiveFile()}
           onDownloadArchiveFile={() => void handleDownloadArchiveFile()}
+          onCleanupFilenames={() => void handleCleanupFilenames()}
           onRestartTutorial={handleRestartTutorial}
           suppressEnterSave={tutorialOpen}
         />

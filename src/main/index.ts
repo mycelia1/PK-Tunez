@@ -1,9 +1,10 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, Menu, Tray, nativeImage, shell } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { registerIpcHandlers } from './ipc'
 import { migrateLegacyUserData } from './migrateUserData'
-import { downloadsBusy, shutdownDownloads } from './scdl'
+import { shutdownDownloads } from './scdl'
+import { startSyncHost, stopSyncHost } from './server/host'
 import { loadSettings } from './settings'
 
 const THEME_WINDOW_BG = {
@@ -18,13 +19,49 @@ migrateLegacyUserData()
 
 function resolveIconPath(): string {
   const candidates = [
+    join(__dirname, '../../assets/icons/icon.png'),
     join(__dirname, '../../resources/icon.png'),
     join(process.resourcesPath, 'icon.png')
   ]
   return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0]
 }
 
-function createWindow(): void {
+let mainWindow: BrowserWindow | null = null
+let tray: Tray | null = null
+let isQuitting = false
+
+function showWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    mainWindow = createWindow()
+    return
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+function createTray(): void {
+  const icon = nativeImage.createFromPath(resolveIconPath())
+  const sized = icon.isEmpty() ? icon : icon.resize({ width: 16, height: 16 })
+  tray = new Tray(sized)
+  tray.setToolTip('PK-Tunez')
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Open PK-Tunez', click: () => showWindow() },
+      { type: 'separator' },
+      {
+        label: 'Quit',
+        click: () => {
+          isQuitting = true
+          app.quit()
+        }
+      }
+    ])
+  )
+  tray.on('click', () => showWindow())
+}
+
+function createWindow(): BrowserWindow {
   const iconPath = resolveIconPath()
   const theme = loadSettings().theme
   const mainWindow = new BrowserWindow({
@@ -49,6 +86,12 @@ function createWindow(): void {
     mainWindow.show()
   })
 
+  mainWindow.on('close', (event) => {
+    if (isQuitting) return
+    event.preventDefault()
+    mainWindow.hide()
+  })
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
@@ -59,31 +102,32 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  return mainWindow
 }
 
 app.whenReady().then(() => {
   app.setAppUserModelId('com.pktunez.app')
   registerIpcHandlers()
-  createWindow()
+  mainWindow = createWindow()
+  createTray()
+  void startSyncHost()
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    showWindow()
   })
 })
 
 let isShuttingDown = false
 
-// Kill any in-progress download and sweep leftover .part files before quitting,
-// so closing the app never orphans the scdl process or leaves partial files.
+// Stop downloads and the home server before the process exits.
+// Closing the window only hides it, so this runs from the tray Quit item.
 app.on('before-quit', (event) => {
-  if (isShuttingDown || !downloadsBusy()) return
+  if (isShuttingDown) return
   event.preventDefault()
   isShuttingDown = true
-  void shutdownDownloads().finally(() => app.quit())
-})
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
+  isQuitting = true
+  void shutdownDownloads()
+    .then(() => stopSyncHost())
+    .finally(() => app.quit())
 })

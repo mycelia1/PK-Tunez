@@ -6,12 +6,14 @@ import type {
   ImportMode,
   ImportResult,
   LibraryScanProgress,
+  FilenameCleanupResult,
   LibraryScanResult,
   MixLibrary,
   MixState,
   ResolvedAudioPath,
   ScdlEvent
 } from '../shared/types'
+import type { PairingTicket, ServerStatus } from '../shared/serverProtocol'
 
 const api = {
   platform: process.platform,
@@ -51,6 +53,12 @@ const api = {
   importTracks: (mode: ImportMode): Promise<ImportResult> =>
     ipcRenderer.invoke(IPC.IMPORT_TRACKS, mode),
   scanLibrary: (): Promise<LibraryScanResult> => ipcRenderer.invoke(IPC.SCAN_LIBRARY),
+  cleanupFilenames: (apply: boolean): Promise<FilenameCleanupResult> =>
+    ipcRenderer.invoke(IPC.CLEANUP_FILENAMES, apply),
+  getServerStatus: (): Promise<ServerStatus> => ipcRenderer.invoke(IPC.GET_SERVER_STATUS),
+  createPairing: (): Promise<PairingTicket | { error: string }> =>
+    ipcRenderer.invoke(IPC.CREATE_PAIRING),
+  revokeDevice: (id: string): Promise<ServerStatus> => ipcRenderer.invoke(IPC.REVOKE_DEVICE, id),
   onEvent: (callback: (event: ScdlEvent) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: ScdlEvent) => callback(payload)
     ipcRenderer.on(IPC.EVENT, listener)

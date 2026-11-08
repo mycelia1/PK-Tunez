@@ -1,6 +1,6 @@
 {
   "name": "pk-tunez",
-  "version": "1.1.0-beta.8",
+  "version": "1.2.0-beta.1",
   "description": "PK-Tunez — EarthBound-style SoundCloud downloader UI",
   "main": "./out/main/index.js",
   "author": {
@@ -12,7 +12,7 @@
     "build": "electron-vite build && node scripts/copy-resources.mjs",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
-    "test": "node --test tests/tutorial-steps.test.mts",
+    "test": "node --import ./tests/register-hooks.mjs --test --experimental-strip-types \"tests/*.test.mts\"",
     "bundle:binaries:win": "powershell -ExecutionPolicy Bypass -File scripts/bundle-binaries/bundle-win.ps1",
     "bundle:binaries:mac": "bash scripts/bundle-binaries/bundle-mac.sh",
     "build:win": "npm run build && electron-builder --win --publish never --config electron-builder.yml",
@@ -22,10 +22,13 @@
   "dependencies": {
     "@fontsource/press-start-2p": "^5.2.5",
     "@fontsource/vt323": "^5.2.5",
+    "bonjour-service": "^1.4.4",
+    "qrcode": "^1.5.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
     "@vitejs/plugin-react": "^4.4.1",

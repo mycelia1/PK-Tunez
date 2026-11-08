@@ -33,6 +33,18 @@ export function hasBundledScdl(): boolean {
 }
 
 const DENO_BINARY = isWindows ? 'deno.exe' : 'deno'
+const CLOUDFLARED_BINARY = isWindows ? 'cloudflared.exe' : 'cloudflared'
+
+/**
+ * Bundled cloudflared, or the name `cloudflared` when a developer has it on PATH.
+ * Returns null only when neither is available. Callers treat a missing file as
+ * "tunnel off" and keep the LAN server running.
+ */
+export function getCloudflaredPath(): string | null {
+  const bundled = join(getBinDir(), CLOUDFLARED_BINARY)
+  if (existsSync(bundled)) return bundled
+  return CLOUDFLARED_BINARY
+}
 
 /** Absolute path to bundled Deno for yt-dlp YouTube JS challenges, or null if missing. */
 export function getBundledDenoPath(): string | null {

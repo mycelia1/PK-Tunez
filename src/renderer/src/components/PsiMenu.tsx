@@ -4,6 +4,7 @@ import type { AppSettings, UiTheme, YouTubeCookiesBrowser } from '../../../share
 import { THEME_LABELS, UI_THEMES } from '../theme/themes'
 import { useTheme } from '../theme/ThemeContext'
 import { EbButton } from './EbButton'
+import { ServerPanel } from './ServerPanel'
 import { useEnterKey } from '../utils/useEnterKey'
 import './PsiMenu.css'
 
@@ -16,6 +17,7 @@ interface PsiMenuProps {
   onSetDownloadFolder: () => void
   onSetArchiveFile: () => void
   onDownloadArchiveFile: () => void
+  onCleanupFilenames: () => void
   onRestartTutorial: () => void
   /** When true, Enter does not save (e.g. spotlight tour is handling Enter). */
   suppressEnterSave?: boolean
@@ -36,6 +38,7 @@ export function PsiMenu({
   onSetDownloadFolder,
   onSetArchiveFile,
   onDownloadArchiveFile,
+  onCleanupFilenames,
   onRestartTutorial,
   suppressEnterSave = false
 }: PsiMenuProps): JSX.Element | null {
@@ -134,6 +137,17 @@ export function PsiMenu({
               <small className="psi-menu__help">Set picks a new download location.</small>
             </label>
 
+            <div className="psi-menu__field">
+              <span className="eb-label">YouTube file names</span>
+              <EbButton type="button" className="eb-button eb-button--secondary" onClick={onCleanupFilenames}>
+                Remove channel names
+              </EbButton>
+              <small className="psi-menu__help">
+                New YouTube downloads use the song title only. This renames files you already have and
+                updates the Backpack and mixes. It asks before it changes anything.
+              </small>
+            </div>
+
             <label className="psi-menu__field">
               <span className="eb-label">Global Archive File</span>
               <div className="psi-menu__path-row">
@@ -164,6 +178,8 @@ export function PsiMenu({
                 <code>src/renderer/src/assets/sfx/dk64/session-complete/</code>
               </small>
             </label>
+
+            <ServerPanel settings={settings} onChange={onChange} />
 
             <label className="psi-menu__toggle">
               <input

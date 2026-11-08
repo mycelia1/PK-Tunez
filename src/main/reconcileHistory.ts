@@ -8,6 +8,9 @@ import { validateCompletedMedia } from './validateMedia'
 import { FingerprintCache, readStamp, type FileStamp } from './fingerprint'
 import { fileNameKey, normalizePathKey, relinkEntry, withLibraryLock } from './libraryIndex'
 import { loadHistory, saveHistory } from './settings'
+import { parseTrackFileName } from '../shared/trackFileName'
+
+export { parseTrackFileName }
 
 /** Audio extensions that count as library tracks. */
 export const AUDIO_EXTENSIONS = new Set([
@@ -50,38 +53,6 @@ export function isUnderMixesFolder(filePath: string): boolean {
   return filePath
     .split(/[\\/]+/)
     .some((segment) => segment.toLowerCase() === MIXES_FOLDER)
-}
-
-/**
- * Derive {trackId, artist, title} from a download file name, mirroring how
- * `parseDestination` interprets scdl's "[download] Destination:" lines so that
- * disk-reconciled entries key the same way as live-recorded ones.
- */
-export function parseTrackFileName(fileName: string): {
-  trackId: string
-  artist: string
-  title: string
-} {
-  // Legacy naming from an older `--name-format`; current downloads carry no id.
-  const bracketMatch = fileName.match(/^\[(\d+)\]\s+(.+)\.[^.]+$/)
-  if (bracketMatch) {
-    const trackId = bracketMatch[1]
-    const full = bracketMatch[2]
-    const split = full.split(' - ')
-    if (split.length >= 2) {
-      return { trackId, artist: split[0].trim(), title: split.slice(1).join(' - ').trim() }
-    }
-    return { trackId, artist: 'Unknown', title: full }
-  }
-
-  const withoutExt = fileName.replace(/\.[^.]+$/, '')
-
-  const split = withoutExt.split(' - ')
-  if (split.length >= 2) {
-    return { trackId: withoutExt, artist: split[0].trim(), title: split.slice(1).join(' - ').trim() }
-  }
-
-  return { trackId: fileName, artist: 'Unknown', title: fileName }
 }
 
 /** Recursively collect absolute paths of audio files under `rootDir`. */

@@ -18,7 +18,10 @@ import {
 } from './binPaths'
 import { decodeScdlOutput } from './scdlEncoding'
 import { resolveCompletedTrackPath } from './resolveAudioPath'
-import { parseTrackFileName, reconcileHistoryEntries, collectAudioFiles } from './reconcileHistory'
+import { reconcileHistoryEntries, collectAudioFiles } from './reconcileHistory'
+import { parseTrackFileName, parseYouTubeFileName } from '../shared/trackFileName'
+import { YOUTUBE_OUTPUT_BASENAME } from '../shared/youtubeNames'
+import { isServerJobRunning } from './server/busy'
 import { collectSidecars, findSidecarForMedia, historyEntryFromSidecar } from './infoSidecar'
 import { removeArchiveEntry } from './archiveMutate'
 import { deleteMediaAndSidecar, validateCompletedMedia } from './validateMedia'
@@ -460,7 +463,7 @@ function buildYouTubeArgs(request: DownloadRequest): {
     mkdirSync(outputPath, { recursive: true })
   }
 
-  const outputTemplate = join(outputPath, '%(uploader)s - %(title)s.%(ext)s')
+  const outputTemplate = join(outputPath, YOUTUBE_OUTPUT_BASENAME)
 
   const args: string[] = [
     request.url,
@@ -568,8 +571,11 @@ function parseDestination(line: string): { title: string; artist: string; filePa
 
   const filePath = destinationMatch[1].trim()
   const fileName = filePath.split(/[\\/]/).pop() ?? filePath
-  const { trackId, artist, title } = parseTrackFileName(fileName)
-  return { trackId, artist, title, filePath }
+  // YouTube files are title-only. A title that contains " - " must not be
+  // split into a fake artist. The channel name comes from the sidecar.
+  const parsed =
+    currentSource === 'youtube' ? parseYouTubeFileName(fileName) : parseTrackFileName(fileName)
+  return { trackId: parsed.trackId, artist: parsed.artist, title: parsed.title, filePath }
 }
 
 function parseArchiveSkip(line: string): { trackId: string; title: string } | null {
@@ -1275,9 +1281,36 @@ async function finalize(success: boolean, message: string): Promise<void> {
   emit({ type: 'done', success: success && !s.cancelled, message })
 }
 
+/** Argv for a YouTube or SoundCloud download. Shared by the window and the phone server. */
+export function commandForDownload(request: DownloadRequest): {
+  command: string
+  args: string[]
+  outputPath: string
+} {
+  const settings = loadSettings()
+  const source = detectSource(request.url)
+  if (source === 'youtube') {
+    const yt = buildYouTubeArgs(request)
+    const invocation = getYtDlpInvocation()
+    return {
+      command: invocation.command,
+      args: [...invocation.prelude, ...yt.args],
+      outputPath: yt.outputPath
+    }
+  }
+  return {
+    command: getScdlPath(),
+    args: buildArgs(request),
+    outputPath: resolveOutputPath(request, settings)
+  }
+}
+
 export function startDownload(window: BrowserWindow, request: DownloadRequest): { ok: boolean; error?: string } {
   if (activeProcess || session) {
     return { ok: false, error: 'A download is already running.' }
+  }
+  if (isServerJobRunning()) {
+    return { ok: false, error: 'A phone download is running on this computer. Wait for it to finish.' }
   }
 
   activeWindow = window

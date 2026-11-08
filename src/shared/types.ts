@@ -1,3 +1,5 @@
+import type { PairingTicket, ServerStatus } from './serverProtocol'
+
 export type DownloadMode = 'uploads' | 'all' | 'likes' | 'playlists' | 'single'
 
 /** Visual / audio skin for the renderer UI. */
@@ -51,6 +53,16 @@ export interface AppSettings {
   youtubePlayerClient: string
   /** Write full download output to a log file under app data (logs/). */
   logsEnabled: boolean
+  /** Home server for phones. It runs while PK-Tunez is open, including in the tray. */
+  serverEnabled: boolean
+  /** TCP port for the home server. */
+  serverPort: number
+  /** Open a cloudflared tunnel so a phone can connect away from home. */
+  tunnelEnabled: boolean
+  /** Cloudflare named-tunnel token. Empty uses a temporary trycloudflare.com address. */
+  tunnelToken: string
+  /** Public host name for a named tunnel, for example home.example.com. */
+  tunnelHostname: string
 }
 
 /** Where a library track came from. Absent on entries written before this field existed. */
@@ -92,6 +104,17 @@ export interface ImportResult {
   /** Sources refused because they live under a folder named `mixes`. */
   skippedMixes: number
   failed: number
+  error?: string
+}
+
+export interface FilenameCleanupResult {
+  ok: boolean
+  dryRun: boolean
+  /** Files renamed, or files that would be renamed when `dryRun` is true. */
+  renamed: number
+  missing: number
+  skipped: number
+  changes: Array<{ from: string; to: string }>
   error?: string
 }
 
@@ -267,6 +290,10 @@ export interface ScdlApi {
   exportMix: (mixId?: string) => Promise<MixExportResult>
   importTracks: (mode: ImportMode) => Promise<ImportResult>
   scanLibrary: () => Promise<LibraryScanResult>
+  cleanupFilenames: (apply: boolean) => Promise<FilenameCleanupResult>
+  getServerStatus: () => Promise<ServerStatus>
+  createPairing: () => Promise<PairingTicket | { error: string }>
+  revokeDevice: (id: string) => Promise<ServerStatus>
   onEvent: (callback: (event: ScdlEvent) => void) => () => void
   onLibraryProgress: (callback: (progress: LibraryScanProgress) => void) => () => void
 }

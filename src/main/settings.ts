@@ -29,7 +29,18 @@ const DEFAULT_SETTINGS: AppSettings = {
   youtubeCookiesFromBrowser: false,
   youtubeCookiesBrowser: 'firefox',
   youtubePlayerClient: '',
-  logsEnabled: false
+  logsEnabled: false,
+  serverEnabled: true,
+  serverPort: 47321,
+  tunnelEnabled: false,
+  tunnelToken: '',
+  tunnelHostname: ''
+}
+
+function clampPort(value: unknown): number {
+  const port = typeof value === 'number' ? value : Number(value)
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return DEFAULT_SETTINGS.serverPort
+  return port
 }
 
 function settingsPath(): string {
@@ -62,6 +73,9 @@ export function loadSettings(): AppSettings {
     const hadTutorialFlag = Object.prototype.hasOwnProperty.call(parsed, 'tutorialCompleted')
     const merged = { ...DEFAULT_SETTINGS, ...parsed }
     merged.theme = normalizeTheme(merged.theme)
+    merged.serverPort = clampPort(merged.serverPort)
+    merged.serverEnabled = merged.serverEnabled !== false
+    merged.tunnelEnabled = merged.tunnelEnabled === true
     // Existing installs from before the tutorial feature should not be forced through it.
     if (!hadTutorialFlag) {
       merged.tutorialCompleted = true
@@ -77,6 +91,9 @@ export function saveSettings(partial: Partial<AppSettings>): AppSettings {
   const next = { ...current, ...partial } as AppSettings & { youtubeCookiesHintShown?: boolean }
   delete next.youtubeCookiesHintShown
   next.theme = normalizeTheme(next.theme)
+  next.serverPort = clampPort(next.serverPort)
+  next.serverEnabled = next.serverEnabled !== false
+  next.tunnelEnabled = next.tunnelEnabled === true
   ensureDir(next.downloadDir)
   ensureDir(join(next.archivePath, '..'))
   writeFileSync(settingsPath(), JSON.stringify(next, null, 2), 'utf8')

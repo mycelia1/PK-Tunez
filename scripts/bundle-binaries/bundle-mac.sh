@@ -169,5 +169,25 @@ if ! "${OUT_DIR}/deno" --version >/dev/null 2>&1; then
 fi
 echo "deno OK ($("${OUT_DIR}/deno" --version | head -n 1))"
 
+# Download cloudflared so the home server can open a tunnel with no extra app.
+CLOUDFLARED_VERSION="2026.10.7"
+HOST_ARCH="$(uname -m)"
+if [ "${HOST_ARCH}" = "arm64" ]; then
+  CLOUDFLARED_ASSET="cloudflared-darwin-arm64.tgz"
+else
+  CLOUDFLARED_ASSET="cloudflared-darwin-amd64.tgz"
+fi
+echo ""
+echo "Downloading cloudflared ${CLOUDFLARED_VERSION} (${CLOUDFLARED_ASSET})..."
+curl -fsSL -o "${WORK_DIR}/cloudflared.tgz" \
+  "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/${CLOUDFLARED_ASSET}"
+tar -xzf "${WORK_DIR}/cloudflared.tgz" -C "${OUT_DIR}"
+chmod +x "${OUT_DIR}/cloudflared"
+if ! "${OUT_DIR}/cloudflared" --version >/dev/null 2>&1; then
+  echo "cloudflared --version failed" >&2
+  exit 1
+fi
+echo "cloudflared OK ($("${OUT_DIR}/cloudflared" --version | head -n 1))"
+
 echo ""
 echo "Done. Binaries written to ${OUT_DIR}"

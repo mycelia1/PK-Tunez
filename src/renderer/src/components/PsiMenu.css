@@ -133,6 +133,32 @@
   margin-right: 10px;
 }
 
+.psi-menu__pair {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+.psi-menu__code {
+  font-size: 22px;
+  letter-spacing: 0.12em;
+}
+
+.psi-menu__devices {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.psi-menu__devices li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
 @media (max-width: 640px) {
   .psi-menu__path-row {
     grid-template-columns: 1fr;

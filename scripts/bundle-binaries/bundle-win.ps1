@@ -171,6 +171,22 @@ if ($denoExit -ne 0) {
 }
 Write-Host "deno.exe OK ($(($denoOut -split "`n")[0].Trim()))"
 
+# 7. Download cloudflared so the home server can open a tunnel with no extra app.
+$cloudflaredVersion = '2026.10.7'
+Write-Host "`n[7] Downloading cloudflared $cloudflaredVersion..."
+$cloudflaredUrl = "https://github.com/cloudflare/cloudflared/releases/download/$cloudflaredVersion/cloudflared-windows-amd64.exe"
+$cloudflaredExe = Join-Path $outDir 'cloudflared.exe'
+Invoke-WebRequest -Uri $cloudflaredUrl -OutFile $cloudflaredExe
+$ErrorActionPreference = 'Continue'
+$cloudflaredOut = (& $cloudflaredExe --version 2>&1 | Out-String)
+$cloudflaredExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+if ($cloudflaredExit -ne 0) {
+  Write-Host $cloudflaredOut
+  throw "cloudflared.exe --version failed (exit $cloudflaredExit)"
+}
+Write-Host "cloudflared.exe OK ($(($cloudflaredOut -split "`n")[0].Trim()))"
+
 Write-Host "`nDone. Binaries written to $outDir"
 Write-Host "Cleaning up work dir..."
 Remove-Item -Recurse -Force $workDir

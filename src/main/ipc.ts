@@ -6,6 +6,8 @@ import { loadHistory } from './archive'
 import { ensureArchiveFile, loadSettings, saveSettings } from './settings'
 import { resolveAudioPath, resolveAudioPaths } from './resolveAudioPath'
 import { scanLibraryFolder } from './reconcileHistory'
+import { cleanupYouTubeFilenames } from './filenameCleanup'
+import { getServerStatus, issuePairing, revokePairedDevice, startSyncHost } from './server/host'
 import { importTracks } from './importTracks'
 import { loadSessions } from './sessionLog'
 import {
@@ -48,7 +50,20 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC.GET_SETTINGS, () => loadSettings())
 
-  ipcMain.handle(IPC.SAVE_SETTINGS, (_event, partial: Partial<AppSettings>) => saveSettings(partial))
+  ipcMain.handle(IPC.SAVE_SETTINGS, async (_event, partial: Partial<AppSettings>) => {
+    const before = loadSettings()
+    const next = saveSettings(partial)
+    const serverChanged =
+      before.serverEnabled !== next.serverEnabled ||
+      before.serverPort !== next.serverPort ||
+      before.tunnelEnabled !== next.tunnelEnabled ||
+      before.tunnelToken !== next.tunnelToken ||
+      before.tunnelHostname !== next.tunnelHostname ||
+      before.downloadDir !== next.downloadDir ||
+      before.archivePath !== next.archivePath
+    if (serverChanged) await startSyncHost()
+    return next
+  })
 
   ipcMain.handle(IPC.GET_HISTORY, () => loadHistory())
 
@@ -140,6 +155,16 @@ export function registerIpcHandlers(): void {
     }
     return importTracks(mode === 'folder' ? 'folder' : 'files', progressReporter(event.sender))
   })
+
+  ipcMain.handle(IPC.CLEANUP_FILENAMES, (_event, apply: boolean) => {
+    return cleanupYouTubeFilenames(apply === true)
+  })
+
+  ipcMain.handle(IPC.GET_SERVER_STATUS, () => getServerStatus())
+
+  ipcMain.handle(IPC.CREATE_PAIRING, () => issuePairing())
+
+  ipcMain.handle(IPC.REVOKE_DEVICE, (_event, id: string) => revokePairedDevice(id))
 
   ipcMain.handle(IPC.SCAN_LIBRARY, (event) => {
     if (isDownloadActive()) {
