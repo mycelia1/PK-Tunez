@@ -57,7 +57,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-14
+          # macos-14 was removed. macos-15 is the Apple Silicon runner.
+          - runner: macos-15
             arch: arm64
           # macos-13 (Intel) was retired 2025-12-04; macos-15-intel is the last
           # GitHub-hosted x86_64 macOS runner (available until ~Aug 2027).

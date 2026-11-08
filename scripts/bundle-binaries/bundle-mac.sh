@@ -96,13 +96,19 @@ echo "[3/6] Building scdl with PyInstaller..."
 cp "${WORK_DIR}/dist/scdl" "${OUT_DIR}/scdl"
 chmod +x "${OUT_DIR}/scdl"
 
-# 4. Download static ffmpeg (evermeet.cx provides notarized macOS builds).
+# 4. Download a static ffmpeg. evermeet.cx now returns HTTP 410, so the
+#    pinned ffmpeg-static release is the source. Pick the host architecture.
 echo ""
 echo "[4/6] Downloading static ffmpeg..."
-FFMPEG_ZIP="${WORK_DIR}/ffmpeg.zip"
-curl -L -o "${FFMPEG_ZIP}" 'https://evermeet.cx/ffmpeg/getrelease/zip'
-unzip -o "${FFMPEG_ZIP}" -d "${WORK_DIR}/ffmpeg"
-cp "${WORK_DIR}/ffmpeg/ffmpeg" "${OUT_DIR}/ffmpeg"
+FFMPEG_TAG="b6.1.1"
+if [ "$(uname -m)" = "arm64" ]; then
+  FFMPEG_ASSET="ffmpeg-darwin-arm64.gz"
+else
+  FFMPEG_ASSET="ffmpeg-darwin-x64.gz"
+fi
+curl -fsSL -o "${WORK_DIR}/ffmpeg.gz" \
+  "https://github.com/eugeneware/ffmpeg-static/releases/download/${FFMPEG_TAG}/${FFMPEG_ASSET}"
+gunzip -c "${WORK_DIR}/ffmpeg.gz" > "${OUT_DIR}/ffmpeg"
 chmod +x "${OUT_DIR}/ffmpeg"
 
 # 5. Download pinned Deno for the host arch — yt-dlp's JS runtime for YouTube.
