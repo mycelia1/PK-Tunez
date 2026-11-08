@@ -12,6 +12,7 @@
     "build": "electron-vite build && node scripts/copy-resources.mjs",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
+    "test": "node --test tests/tutorial-steps.test.mts",
     "bundle:binaries:win": "powershell -ExecutionPolicy Bypass -File scripts/bundle-binaries/bundle-win.ps1",
     "bundle:binaries:mac": "bash scripts/bundle-binaries/bundle-mac.sh",
     "build:win": "npm run build && electron-builder --win --publish never --config electron-builder.yml",

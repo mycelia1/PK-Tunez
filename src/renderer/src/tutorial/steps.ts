@@ -7,6 +7,8 @@ export type TutorialTargetId =
   | 'psi-menu'
   | 'stream'
   | 'backpack'
+  | 'import'
+  | 'scan'
   | 'mix'
 
 export interface TutorialStep {
@@ -82,10 +84,29 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: 'Backpack (your track library)',
     body: [
       'Completed tracks land here automatically. You can open files in your default player and add them to one or more mixes.',
-      'Use Import tracks to bring in audio from anywhere else — it gets copied into your download folder. Reorganized your folders? Press Scan library and moved tracks are recognized by their contents and relinked.',
       'Entries stay listed even after a file goes away (for example onto a thumb drive); those show a Missing badge.'
     ],
     target: 'backpack'
+  },
+  {
+    id: 'import',
+    title: 'Import tracks',
+    body: [
+      'Use Import tracks to bring in audio you already have. PK-Tunez copies the files into your download folder and adds them to the backpack.',
+      'Choose Audio files for a selection, or Folder to bring in a whole directory. Tracks already in the backpack are skipped, and files inside a mixes folder are left alone.',
+      'Import stays disabled while a download is running, so it cannot race the files being written.'
+    ],
+    target: 'import'
+  },
+  {
+    id: 'scan',
+    title: 'Scan library',
+    body: [
+      'Scan library walks your download folder and lines the backpack up with what is actually on disk.',
+      'New files are added. Tracks you moved are recognized by their contents and relinked, so a reorganized folder does not look like a pile of missing files.',
+      'Run a scan after you change the download folder in Psi Menu. Like import, scanning waits until the current download finishes.'
+    ],
+    target: 'scan'
   },
   {
     id: 'mix',

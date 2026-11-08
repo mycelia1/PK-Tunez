@@ -349,6 +349,7 @@ export function Backpack({
           <EbButton
             type="button"
             className="eb-button backpack__toolbar-button"
+            data-tour="import"
             disabled={libraryLocked}
             title={sessionActive ? sessionLockHint : undefined}
             aria-expanded={importMenuOpen}
@@ -381,6 +382,7 @@ export function Backpack({
         <EbButton
           type="button"
           className="eb-button eb-button--secondary backpack__toolbar-button"
+          data-tour="scan"
           disabled={libraryLocked}
           title={sessionActive ? sessionLockHint : undefined}
           onClick={() => void handleScan()}
