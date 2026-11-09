@@ -24,6 +24,7 @@ class PkDownloadModule(private val reactContext: ReactApplicationContext) :
 
   private val pool = Executors.newSingleThreadExecutor()
   @Volatile private var engineReady = false
+  @Volatile private var extractorFresh = false
 
   override fun getName(): String = NAME
 
@@ -74,6 +75,7 @@ class PkDownloadModule(private val reactContext: ReactApplicationContext) :
     pool.execute {
       try {
         ensureEngine()
+        prepareYouTube(url)
         val dir = File(outputDir)
         if (!dir.exists()) dir.mkdirs()
         val before = dir.walkTopDown().filter { it.isFile }.map { it.absolutePath }.toSet()
@@ -86,6 +88,14 @@ class PkDownloadModule(private val reactContext: ReactApplicationContext) :
         request.addOption("--no-mtime")
         request.addOption("-o", File(dir, "%(title)s.%(ext)s").absolutePath)
         if (playlist) request.addOption("--yes-playlist") else request.addOption("--no-playlist")
+        if (isYouTube(url)) {
+          // The library copy warns, then YouTube returns HTTP 403. A current
+          // yt-dlp picks a client that still has a real audio URL.
+          request.addOption("--no-update")
+          if (versionStamp(YoutubeDL.getInstance().versionName(reactContext)) < "20260817") {
+            request.addOption("--extractor-args", "youtube:player_client=ios,tv,mweb")
+          }
+        }
         YoutubeDL.getInstance().execute(request)
         val created = dir.walkTopDown().filter { file ->
           file.isFile &&
@@ -160,6 +170,42 @@ class PkDownloadModule(private val reactContext: ReactApplicationContext) :
     YoutubeDL.getInstance().init(reactContext)
     FFmpeg.getInstance().init(reactContext)
     engineReady = true
+  }
+
+  /**
+   * The library ships yt-dlp 2025.11.12. YouTube now answers that build with
+   * HTTP 403. Replace it with the nightly build when it is more than 14 days old.
+   */
+  private fun prepareYouTube(url: String) {
+    if (!isYouTube(url) || extractorFresh) return
+    val current = YoutubeDL.getInstance().versionName(reactContext).orEmpty()
+    if (isStale(current)) {
+      try {
+        YoutubeDL.getInstance().updateYoutubeDL(reactContext, YoutubeDL.UpdateChannel.NIGHTLY)
+      } catch (_: Exception) {
+        // Keep the bundled copy. The download reports the YouTube error if it still fails.
+      }
+    }
+    extractorFresh = true
+  }
+
+  private fun isYouTube(url: String): Boolean {
+    val lower = url.lowercase()
+    return lower.contains("youtube.com") || lower.contains("youtu.be")
+  }
+
+  private fun isStale(version: String): Boolean {
+    val stamp = versionStamp(version)
+    if (stamp.isEmpty()) return true
+    val cutoff = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(
+      java.util.Date(System.currentTimeMillis() - 14L * 24 * 60 * 60 * 1000)
+    )
+    return stamp < cutoff
+  }
+
+  private fun versionStamp(version: String?): String {
+    val match = Regex("(\\d{4})\\.(\\d{2})\\.(\\d{2})").find(version ?: "") ?: return ""
+    return match.groupValues[1] + match.groupValues[2] + match.groupValues[3]
   }
 
   private fun open(url: String, headers: ReadableMap?): HttpURLConnection {
