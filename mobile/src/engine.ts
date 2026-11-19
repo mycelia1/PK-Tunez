@@ -1,6 +1,13 @@
 import { Platform } from 'react-native'
 import { downloadLink, type PhoneDownloadDeps } from '../../src/shared/phoneDownload'
-import type { LibraryTrack, ResolveResponse, ServerJobView } from '../../src/shared/serverProtocol'
+import type {
+  LibraryPage,
+  LibraryTrack,
+  PhoneMix,
+  PhoneMixLibrary,
+  ResolveResponse,
+  ServerJobView
+} from '../../src/shared/serverProtocol'
 import { classifyYouTubeUrl, detectSource } from '../../src/shared/sources'
 import { uploadHeaders, type UploadMeta } from '../../src/shared/uploadHeaders'
 import type { PhoneTrack } from '../../src/shared/syncQueue'
@@ -34,11 +41,69 @@ export async function pairWithServer(serverUrl: string, code: string, name: stri
   return body.token
 }
 
-export async function searchServer(session: PhoneSession, query: string): Promise<LibraryTrack[]> {
-  const url = `${session.serverUrl.replace(/\/$/, '')}/api/v1/library?q=${encodeURIComponent(query)}`
-  const response = await fetch(url, { headers: { authorization: `Bearer ${session.token}` } })
-  const body = await readJson<{ tracks: LibraryTrack[] }>(response)
-  return body.tracks
+export async function fetchLibrary(
+  session: PhoneSession,
+  options: { q?: string; dir?: string; cursor?: number; deep?: boolean; limit?: number }
+): Promise<LibraryPage> {
+  const base = session.serverUrl.replace(/\/$/, '')
+  const params = new URLSearchParams()
+  if (options.q) params.set('q', options.q)
+  if (options.dir) params.set('dir', options.dir)
+  if (options.deep) params.set('deep', '1')
+  params.set('cursor', String(options.cursor ?? 0))
+  params.set('limit', String(options.limit ?? 20))
+  const response = await fetch(`${base}/api/v1/library?${params}`, {
+    headers: { authorization: `Bearer ${session.token}` }
+  })
+  return readJson<LibraryPage>(response)
+}
+
+export async function randomServerTrack(session: PhoneSession): Promise<LibraryTrack> {
+  const response = await fetch(`${session.serverUrl.replace(/\/$/, '')}/api/v1/library/random`, {
+    headers: { authorization: `Bearer ${session.token}` }
+  })
+  const body = await readJson<{ track: LibraryTrack }>(response)
+  return body.track
+}
+
+export async function fetchMixes(session: PhoneSession): Promise<PhoneMixLibrary> {
+  const response = await fetch(`${session.serverUrl.replace(/\/$/, '')}/api/v1/mixes`, {
+    headers: { authorization: `Bearer ${session.token}` }
+  })
+  return readJson<PhoneMixLibrary>(response)
+}
+
+export async function createServerMix(session: PhoneSession, name: string): Promise<PhoneMixLibrary> {
+  const response = await fetch(`${session.serverUrl.replace(/\/$/, '')}/api/v1/mixes`, {
+    method: 'POST',
+    headers: authHeaders(session.token),
+    body: JSON.stringify({ name })
+  })
+  return readJson<PhoneMixLibrary>(response)
+}
+
+export async function saveServerMix(
+  session: PhoneSession,
+  mixId: string,
+  trackIds: string[]
+): Promise<PhoneMix> {
+  const response = await fetch(
+    `${session.serverUrl.replace(/\/$/, '')}/api/v1/mixes/${encodeURIComponent(mixId)}`,
+    {
+      method: 'PUT',
+      headers: authHeaders(session.token),
+      body: JSON.stringify({ trackIds })
+    }
+  )
+  return readJson<PhoneMix>(response)
+}
+
+export async function deleteServerMix(session: PhoneSession, mixId: string): Promise<PhoneMixLibrary> {
+  const response = await fetch(
+    `${session.serverUrl.replace(/\/$/, '')}/api/v1/mixes/${encodeURIComponent(mixId)}`,
+    { method: 'DELETE', headers: { authorization: `Bearer ${session.token}` } }
+  )
+  return readJson<PhoneMixLibrary>(response)
 }
 
 function wantsPlaylist(url: string): boolean {
@@ -61,7 +126,7 @@ export async function downloadToPhone(url: string, session: PhoneSession): Promi
     downloadAudio: native.downloadAudio
       ? (target, dir) => native.downloadAudio!(target, dir, wantsPlaylist(target))
       : undefined,
-    downloadToFile: (target, headers, dest) => native.downloadToFile(target, headers, dest).then(() => undefined),
+    downloadToFile: (target, headers, dest) => native.downloadToFile(target, headers, dest),
     uploadFile: async (filePath, meta: UploadMeta) => {
       const result = await native.uploadFile(`${base}/api/v1/tracks`, uploadHeaders(session.token, meta), filePath)
       if (result.status !== 200) throw new Error(result.body || 'Upload failed.')
@@ -98,13 +163,12 @@ export async function downloadToPhone(url: string, session: PhoneSession): Promi
       }
       throw new Error('The home server took too long.')
     },
-    pullTrackFile: async (trackId, dest) => {
-      await native.downloadToFile(
+    pullTrackFile: (trackId, dest) =>
+      native.downloadToFile(
         `${base}/api/v1/tracks/${encodeURIComponent(trackId)}/file`,
         { authorization: `Bearer ${session.token}` },
         dest
       )
-    }
   }
 
   return downloadLink(url, deps)
@@ -116,7 +180,7 @@ export async function pullFromServer(track: LibraryTrack, session: PhoneSession)
   const musicDir = await native.musicDir()
   const safe = (track.title || track.trackId).replace(/[<>:"/\\|?*]/g, '').trim() || track.trackId
   const dest = `${musicDir}/${safe}.m4a`
-  await native.downloadToFile(
+  const stored = await native.downloadToFile(
     `${session.serverUrl.replace(/\/$/, '')}/api/v1/tracks/${encodeURIComponent(track.trackId)}/file`,
     { authorization: `Bearer ${session.token}` },
     dest
@@ -128,7 +192,7 @@ export async function pullFromServer(track: LibraryTrack, session: PhoneSession)
     url: track.url,
     source: track.source === 'local' ? 'local' : track.source,
     fileName: `${safe}.m4a`,
-    filePath: dest,
+    filePath: stored,
     sizeBytes: track.sizeBytes,
     syncState: 'synced',
     addedAt: Date.now()

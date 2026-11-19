@@ -17,6 +17,7 @@ export const IPC = {
   CLEANUP_FILENAMES: 'scdl:cleanup-filenames',
   GET_SERVER_STATUS: 'scdl:get-server-status',
   CREATE_PAIRING: 'scdl:create-pairing',
+  RESTART_TUNNEL: 'scdl:restart-tunnel',
   REVOKE_DEVICE: 'scdl:revoke-device',
   LIBRARY_PROGRESS: 'scdl:library-progress',
   GET_SESSIONS: 'scdl:get-sessions',

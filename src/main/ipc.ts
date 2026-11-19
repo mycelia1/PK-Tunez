@@ -7,7 +7,13 @@ import { ensureArchiveFile, loadSettings, saveSettings } from './settings'
 import { resolveAudioPath, resolveAudioPaths } from './resolveAudioPath'
 import { scanLibraryFolder } from './reconcileHistory'
 import { cleanupYouTubeFilenames } from './filenameCleanup'
-import { getServerStatus, issuePairing, revokePairedDevice, startSyncHost } from './server/host'
+import {
+  getServerStatus,
+  issuePairing,
+  restartCurrentTunnel,
+  revokePairedDevice,
+  startSyncHost
+} from './server/host'
 import { importTracks } from './importTracks'
 import { loadSessions } from './sessionLog'
 import {
@@ -163,6 +169,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.GET_SERVER_STATUS, () => getServerStatus())
 
   ipcMain.handle(IPC.CREATE_PAIRING, () => issuePairing())
+
+  ipcMain.handle(IPC.RESTART_TUNNEL, () => restartCurrentTunnel())
 
   ipcMain.handle(IPC.REVOKE_DEVICE, (_event, id: string) => revokePairedDevice(id))
 

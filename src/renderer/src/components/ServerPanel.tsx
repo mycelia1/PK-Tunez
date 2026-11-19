@@ -39,6 +39,13 @@ export function ServerPanel({ settings, onChange }: ServerPanelProps): JSX.Eleme
     setMessage('This code works for 10 minutes. The phone uses it once.')
   }
 
+  const newTunnel = async (): Promise<void> => {
+    setMessage('Opening a new tunnel link...')
+    const next = await window.scdl.restartTunnel()
+    setStatus(next)
+    setMessage(next.tunnelUrl ? 'A new public link is ready. Pair the phone again.' : 'Opening the tunnel...')
+  }
+
   const revoke = async (id: string): Promise<void> => {
     const next = await window.scdl.revokeDevice(id)
     setStatus(next)
@@ -81,7 +88,15 @@ export function ServerPanel({ settings, onChange }: ServerPanelProps): JSX.Eleme
         <input
           type="checkbox"
           checked={settings.tunnelEnabled}
-          onChange={(event) => onChange({ tunnelEnabled: event.target.checked })}
+          onChange={(event) => {
+            const enabled = event.target.checked
+            onChange({ tunnelEnabled: enabled })
+            if (enabled && !settings.tunnelEnabled) {
+              window.alert(
+                'Save PSI Settings. Then quit PK-Tunez from the tray icon and open it again. The public link appears after that restart.'
+              )
+            }
+          }}
         />
         <span>Allow phones away from home (cloudflared)</span>
       </label>
@@ -111,12 +126,21 @@ export function ServerPanel({ settings, onChange }: ServerPanelProps): JSX.Eleme
         </small>
       </label>
       {settings.tunnelEnabled && status?.tunnelUrl ? (
-        <small className="psi-menu__help">Away from home: {status.tunnelUrl}</small>
+        <p className="psi-menu__tunnel">Away from home: {status.tunnelUrl}</p>
       ) : null}
       {settings.tunnelEnabled && !status?.tunnelUrl && !status?.tunnelError ? (
-        <small className="psi-menu__help">Opening the tunnel...</small>
+        <p className="psi-menu__tunnel">Opening the tunnel...</p>
       ) : null}
-      {status?.tunnelError ? <small className="psi-menu__help">{status.tunnelError}</small> : null}
+      {status?.tunnelError ? <p className="psi-menu__tunnel">{status.tunnelError}</p> : null}
+
+      {settings.tunnelEnabled ? (
+        <EbButton type="button" className="eb-button eb-button--secondary" onClick={() => void newTunnel()}>
+          New tunnel link
+        </EbButton>
+      ) : null}
+      <small className="psi-menu__help">
+        New tunnel link starts a fresh public address. Create pairing code does not.
+      </small>
 
       <EbButton type="button" className="eb-button eb-button--secondary" onClick={() => void createCode()}>
         Create pairing code

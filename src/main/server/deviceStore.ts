@@ -90,10 +90,16 @@ export class DeviceStore {
       tokenHash: hashToken(token),
       createdAt: this.now()
     }
-    const devices = this.load()
-    devices.push(device)
-    this.save(devices)
+    this.save([device])
     return { ok: true, token, deviceId: device.id, name: device.name }
+  }
+
+  /** Keep the newest paired phone. Older pairings of the same phone are dropped. */
+  keepNewestPhone(): void {
+    const devices = this.load()
+    if (devices.length <= 1) return
+    const newest = devices.reduce((best, item) => (item.createdAt >= best.createdAt ? item : best))
+    this.save([newest])
   }
 
   authorize(header: string | undefined): boolean {

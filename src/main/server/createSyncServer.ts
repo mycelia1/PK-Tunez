@@ -8,13 +8,15 @@ import type { HistoryEntry, TrackSource } from '../../shared/types'
 import type {
   HealthResponse,
   LibraryTrack,
+  PhoneMix,
+  PhoneMixLibrary,
   ResolveResponse,
   ServerJobView,
   UploadResult
 } from '../../shared/serverProtocol'
 import { DeviceStore } from './deviceStore'
 import { findDuplicate } from './dedupe'
-import { queryLibrary, toLibraryTrack } from './libraryQuery'
+import { pickRandomTrack, queryLibrary, toLibraryTrack } from './libraryQuery'
 import { parseByteRange } from './range'
 
 const MAX_JSON_BYTES = 1024 * 1024
@@ -49,6 +51,13 @@ export interface SyncServerContext {
   resolveUrl?: (url: string) => Promise<ResolveResponse>
   startJob?: (url: string) => { ok: true; job: ServerJobView } | { ok: false; status: number; error: string }
   getJob?: (id: string) => ServerJobView | null
+  listMixes?: () => PhoneMixLibrary
+  createMix?: (name: string) => PhoneMixLibrary
+  replaceMixTracks?: (
+    id: string,
+    trackIds: string[]
+  ) => { ok: true; mix: PhoneMix } | { ok: false; status: number; error: string }
+  deleteMix?: (id: string) => PhoneMixLibrary
 }
 
 export interface RunningSyncServer {
@@ -295,6 +304,52 @@ async function handleUpload(req: IncomingMessage, ctx: SyncServerContext): Promi
   }
 }
 
+async function routeMixes(
+  req: IncomingMessage,
+  res: ServerResponse,
+  ctx: SyncServerContext,
+  method: string,
+  path: string
+): Promise<void> {
+  if (!ctx.listMixes || !ctx.createMix || !ctx.replaceMixTracks || !ctx.deleteMix) {
+    throw new HttpError(501, 'This server cannot edit mixes.')
+  }
+  if (method === 'GET' && path === '/api/v1/mixes') {
+    sendJson(res, 200, ctx.listMixes())
+    return
+  }
+  if (method === 'POST' && path === '/api/v1/mixes') {
+    const body = (await readJson(req)) as { name?: unknown }
+    const name = typeof body.name === 'string' ? body.name : ''
+    sendJson(res, 200, ctx.createMix(name))
+    return
+  }
+  const match = path.match(/^\/api\/v1\/mixes\/([^/]+)$/)
+  if (!match) {
+    sendJson(res, 404, { error: 'Mix not found.' })
+    return
+  }
+  const id = decodeURIComponent(match[1])
+  if (method === 'DELETE') {
+    sendJson(res, 200, ctx.deleteMix(id))
+    return
+  }
+  if (method === 'PUT') {
+    const body = (await readJson(req)) as { trackIds?: unknown }
+    const trackIds = Array.isArray(body.trackIds)
+      ? body.trackIds.filter((item): item is string => typeof item === 'string')
+      : []
+    const result = ctx.replaceMixTracks(id, trackIds)
+    if (!result.ok) {
+      sendJson(res, result.status, { error: result.error })
+      return
+    }
+    sendJson(res, 200, result.mix)
+    return
+  }
+  sendJson(res, 404, { error: 'Mix not found.' })
+}
+
 async function route(
   req: IncomingMessage,
   res: ServerResponse,
@@ -329,14 +384,32 @@ async function route(
     return
   }
 
+  if (method === 'GET' && path === '/api/v1/library/random') {
+    const track = pickRandomTrack(ctx.getHistory(), ctx.downloadDir, existsSync)
+    if (!track) {
+      sendJson(res, 404, { error: 'The library is empty.' })
+      return
+    }
+    sendJson(res, 200, { track })
+    return
+  }
+
   if (method === 'GET' && path === '/api/v1/library') {
     const page = queryLibrary(ctx.getHistory(), {
       q: url.searchParams.get('q') ?? '',
+      dir: url.searchParams.get('dir') ?? '',
+      deep: url.searchParams.get('deep') === '1',
       cursor: Number(url.searchParams.get('cursor') ?? 0),
       limit: Number(url.searchParams.get('limit') ?? 50),
+      downloadDir: ctx.downloadDir,
       fileExists: existsSync
     })
     sendJson(res, 200, page)
+    return
+  }
+
+  if (path === '/api/v1/mixes' || path.startsWith('/api/v1/mixes/')) {
+    await routeMixes(req, res, ctx, method, path)
     return
   }
 

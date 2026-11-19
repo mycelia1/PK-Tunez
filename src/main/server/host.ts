@@ -4,6 +4,8 @@ import { join } from 'path'
 import QRCode from 'qrcode'
 import type { PairingPayload, PairingTicket, ServerStatus } from '../../shared/serverProtocol'
 import { appendArchiveId, readArchiveIds } from '../archiveMutate'
+import { createMix, deleteMix, loadLibrary, upsertMix } from '../mixes'
+import { mixTracksFromIds, phoneMixFrom, phoneMixLibrary } from './mixTracks'
 import { fingerprintFile } from '../fingerprint'
 import { appendHistory, ensureArchiveFile, loadHistory, loadSettings } from '../settings'
 import { startSyncServer, type RunningSyncServer } from './createSyncServer'
@@ -43,6 +45,7 @@ export async function startSyncHost(): Promise<void> {
   if (!settings.serverEnabled) return
 
   const store = deviceStore()
+  store.keepNewestPhone()
   ensureArchiveFile(settings.archivePath)
   try {
     running = await startSyncServer({
@@ -70,7 +73,29 @@ export async function startSyncHost(): Promise<void> {
       },
       resolveUrl: (url) => resolveMediaUrl(url),
       startJob: (url) => startServerJob(url),
-      getJob: (id) => getServerJob(id)
+      getJob: (id) => getServerJob(id),
+      listMixes: () => {
+        const library = loadLibrary()
+        return phoneMixLibrary(library.activeMixId, library.mixes)
+      },
+      createMix: (name) => {
+        const library = createMix(name)
+        return phoneMixLibrary(library.activeMixId, library.mixes)
+      },
+      deleteMix: (id) => {
+        const library = deleteMix(id)
+        return phoneMixLibrary(library.activeMixId, library.mixes)
+      },
+      replaceMixTracks: (id, trackIds) => {
+        const library = loadLibrary()
+        const mix = library.mixes.find((item) => item.id === id)
+        if (!mix) return { ok: false, status: 404, error: 'Mix not found.' }
+        const saved = upsertMix({
+          ...mix,
+          tracks: mixTracksFromIds(loadHistory(), trackIds)
+        })
+        return { ok: true, mix: phoneMixFrom(saved) }
+      }
     })
     lastError = null
     advertise(running.port)
@@ -123,6 +148,14 @@ export async function issuePairing(): Promise<PairingTicket | { error: string }>
   }
   const qrDataUrl = await QRCode.toDataURL(JSON.stringify(payload), { margin: 1, width: 280 })
   return { code: issued.code, expiresAt: issued.expiresAt, payload, qrDataUrl }
+}
+
+export function restartCurrentTunnel(): ServerStatus {
+  const settings = loadSettings()
+  if (running && settings.tunnelEnabled) {
+    startTunnel(running.port, settings.tunnelToken, settings.tunnelHostname)
+  }
+  return getServerStatus()
 }
 
 export function revokePairedDevice(id: string): ServerStatus {

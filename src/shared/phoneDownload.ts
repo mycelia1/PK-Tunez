@@ -15,16 +15,16 @@ export interface PhoneDownloadDeps {
   paired: boolean
   musicDir: string
   now?: () => number
-  /** Android yt-dlp. Returns the new audio file paths. */
-  downloadAudio?: (url: string, outputDir: string) => Promise<string[]>
-  /** Save a remote URL to a file. Used for stream URLs and for pulls from the server. */
-  downloadToFile: (url: string, headers: Record<string, string>, dest: string) => Promise<void>
+  /** Android yt-dlp. Each item is the stored file and the name shown in the list. */
+  downloadAudio?: (url: string, outputDir: string) => Promise<Array<{ path: string; fileName: string }>>
+  /** Save a remote URL. Returns the stored location, which can differ from dest. */
+  downloadToFile: (url: string, headers: Record<string, string>, dest: string) => Promise<string>
   uploadFile: (filePath: string, meta: UploadMeta) => Promise<{ duplicate: boolean }>
   resolve?: (url: string) => Promise<ResolveResponse>
   startJob?: (url: string) => Promise<ServerJobView>
   waitJob?: (id: string) => Promise<ServerJobView>
-  /** Download one library track from the home server into dest. */
-  pullTrackFile?: (trackId: string, dest: string) => Promise<void>
+  /** Download one library track from the home server. Returns the stored location. */
+  pullTrackFile?: (trackId: string, dest: string) => Promise<string>
   fileNameOf?: (filePath: string) => string
 }
 
@@ -97,9 +97,11 @@ async function downloadOnServer(url: string, deps: PhoneDownloadDeps, now: numbe
   const tracks: PhoneTrack[] = []
   for (const trackId of ids) {
     const dest = `${deps.musicDir}/${trackId.replace(/[^\w.-]+/g, '_')}.m4a`
-    await deps.pullTrackFile(trackId, dest)
-    const track = makeTrack(dest, url, now, false)
+    const stored = await deps.pullTrackFile(trackId, dest)
+    const track = makeTrack(stored, url, now, false)
     track.trackId = trackId
+    track.fileName = fileName(dest)
+    track.title = stem(track.fileName)
     track.syncState = 'synced'
     tracks.push(track)
   }
@@ -122,9 +124,9 @@ export async function downloadLink(url: string, deps: PhoneDownloadDeps): Promis
     if (!deps.downloadAudio) throw new Error('The download engine is not ready.')
     const files = await deps.downloadAudio(target, deps.musicDir)
     if (files.length === 0) throw new Error('No audio file was saved.')
-    const tracks = files.map((filePath) => {
-      const track = makeTrack(filePath, target, now, deps.autoSync && deps.paired)
-      track.fileName = nameOf(filePath)
+    const tracks = files.map((file) => {
+      const track = makeTrack(file.path, target, now, deps.autoSync && deps.paired)
+      track.fileName = file.fileName || nameOf(file.path)
       track.title = stem(track.fileName)
       return track
     })
@@ -147,8 +149,8 @@ export async function downloadLink(url: string, deps: PhoneDownloadDeps): Promis
         for (const item of items) {
           const safe = (item.title || item.id).replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim() || item.id
           const dest = `${deps.musicDir}/${safe}.${item.ext || 'm4a'}`
-          await deps.downloadToFile(item.streamUrl, item.httpHeaders, dest)
-          let track = makeTrack(dest, item.webpageUrl || target, now, deps.autoSync)
+          const stored = await deps.downloadToFile(item.streamUrl, item.httpHeaders, dest)
+          let track = makeTrack(stored, item.webpageUrl || target, now, deps.autoSync)
           track.trackId = item.id
           track.title = item.title
           track.artist = item.artist

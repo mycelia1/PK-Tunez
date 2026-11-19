@@ -144,6 +144,14 @@
   letter-spacing: 0.12em;
 }
 
+.psi-menu__tunnel {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
 .psi-menu__devices {
   display: grid;
   gap: 8px;

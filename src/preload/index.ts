@@ -58,6 +58,7 @@ const api = {
   getServerStatus: (): Promise<ServerStatus> => ipcRenderer.invoke(IPC.GET_SERVER_STATUS),
   createPairing: (): Promise<PairingTicket | { error: string }> =>
     ipcRenderer.invoke(IPC.CREATE_PAIRING),
+  restartTunnel: (): Promise<ServerStatus> => ipcRenderer.invoke(IPC.RESTART_TUNNEL),
   revokeDevice: (id: string): Promise<ServerStatus> => ipcRenderer.invoke(IPC.REVOKE_DEVICE, id),
   onEvent: (callback: (event: ScdlEvent) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: ScdlEvent) => callback(payload)

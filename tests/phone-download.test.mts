@@ -38,14 +38,14 @@ test('android auto-sync uploads and turns the track green', async () => {
     paired: true,
     musicDir: '/music',
     now: () => 10,
-    downloadAudio: async () => ['/music/Snowman.m4a'],
-    downloadToFile: async () => undefined,
+    downloadAudio: async () => [{ path: 'content://media/1', fileName: 'Snowman.m4a' }],
+    downloadToFile: async (_url, _headers, dest) => dest,
     uploadFile: async (filePath) => {
       uploaded.push(filePath)
       return { duplicate: false }
     }
   })
-  assert.deepEqual(uploaded, ['/music/Snowman.m4a'])
+  assert.deepEqual(uploaded, ['content://media/1'])
   assert.equal(tracks[0].syncState, 'synced')
   assert.equal(tracks[0].title, 'Snowman')
 })
@@ -58,8 +58,8 @@ test('android without auto-sync stays grey and does not upload', async () => {
     paired: true,
     musicDir: '/music',
     now: () => 10,
-    downloadAudio: async () => ['/music/Snowman.m4a'],
-    downloadToFile: async () => undefined,
+    downloadAudio: async () => [{ path: '/music/Snowman.m4a', fileName: 'Snowman.m4a' }],
+    downloadToFile: async (_url, _headers, dest) => dest,
     uploadFile: async () => {
       uploads += 1
       return { duplicate: false }
@@ -77,7 +77,7 @@ test('an unpaired iPhone cannot download', async () => {
         autoSync: true,
         paired: false,
         musicDir: '/music',
-        downloadToFile: async () => undefined,
+        downloadToFile: async (_url, _headers, dest) => dest,
         uploadFile: async () => ({ duplicate: false })
       }),
     /home server/
@@ -114,8 +114,9 @@ test('iPhone falls back to a server download and marks the file green', async ()
       startedAt: 1,
       trackIds: ['abc']
     }),
-    pullTrackFile: async (trackId) => {
+    pullTrackFile: async (trackId, dest) => {
       pulled.push(trackId)
+      return dest
     }
   })
   assert.deepEqual(pulled, ['abc'])

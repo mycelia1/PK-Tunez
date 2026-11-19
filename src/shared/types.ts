@@ -293,6 +293,7 @@ export interface ScdlApi {
   cleanupFilenames: (apply: boolean) => Promise<FilenameCleanupResult>
   getServerStatus: () => Promise<ServerStatus>
   createPairing: () => Promise<PairingTicket | { error: string }>
+  restartTunnel: () => Promise<ServerStatus>
   revokeDevice: (id: string) => Promise<ServerStatus>
   onEvent: (callback: (event: ScdlEvent) => void) => () => void
   onLibraryProgress: (callback: (progress: LibraryScanProgress) => void) => () => void

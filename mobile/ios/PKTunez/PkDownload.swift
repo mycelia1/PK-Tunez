@@ -1,9 +1,11 @@
 import Foundation
 import React
+import UIKit
 
 @objc(PkDownload)
-class PkDownload: NSObject {
+class PkDownload: NSObject, UIDocumentInteractionControllerDelegate {
   @objc static func requiresMainQueueSetup() -> Bool { false }
+  private var document: UIDocumentInteractionController?
 
   private func musicDirectory() throws -> URL {
     let base = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -16,6 +18,13 @@ class PkDownload: NSObject {
     let safe = name.filter { $0.isLetter || $0.isNumber || "._-".contains($0) }
     let file = safe.isEmpty ? "library.json" : safe
     return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(file)
+  }
+
+  @objc func deviceName(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    resolve(UIDevice.current.name)
   }
 
   @objc func musicDir(
@@ -133,5 +142,43 @@ class PkDownload: NSObject {
       resolve(["status": code, "body": body])
     }
     task.resume()
+  }
+
+  @objc func relocateTracks(
+    _ paths: NSArray,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    let result: [Any] = paths.map { item in
+      let path = item as? String ?? ""
+      return FileManager.default.fileExists(atPath: path) ? path : NSNull()
+    }
+    resolve(result)
+  }
+
+  @objc func openFile(
+    _ path: String,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    let url = URL(fileURLWithPath: path)
+    guard FileManager.default.fileExists(atPath: path) else {
+      reject("open_failed", "File not found.", nil)
+      return
+    }
+    DispatchQueue.main.async {
+      guard let controller = RCTPresentedViewController() else {
+        reject("open_failed", "No screen is open.", nil)
+        return
+      }
+      let document = UIDocumentInteractionController(url: url)
+      document.delegate = self
+      self.document = document
+      if !document.presentOpenInMenu(from: controller.view.bounds, in: controller.view, animated: true) {
+        reject("open_failed", "No music app can open this file.", nil)
+        return
+      }
+      resolve(true)
+    }
   }
 }

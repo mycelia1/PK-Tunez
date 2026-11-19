@@ -30,11 +30,38 @@ export interface LibraryTrack {
   source: TrackSource
   sizeBytes: number
   ts: number
+  /** Folder under the download directory. Empty when the file is in the root. */
+  folder?: string
+}
+
+export interface LibraryFolder {
+  name: string
+  path: string
+  trackCount: number
 }
 
 export interface LibraryPage {
   tracks: LibraryTrack[]
+  folders: LibraryFolder[]
   nextCursor: number | null
+  total: number
+}
+
+export interface PhoneMixTrack {
+  trackId: string
+  title: string
+  artist: string
+}
+
+export interface PhoneMix {
+  id: string
+  name: string
+  tracks: PhoneMixTrack[]
+}
+
+export interface PhoneMixLibrary {
+  activeMixId: string
+  mixes: PhoneMix[]
 }
 
 export interface UploadResult {
